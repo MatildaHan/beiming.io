@@ -36,6 +36,13 @@
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
+        // ★ 只有"序章"页且 Banner 未完成时才锁屏
+        if (pageId === 'page-home' && bannerCurrentStep < 7) {
+            document.body.classList.add('banner-locked');
+        } else {
+            document.body.classList.remove('banner-locked');
+        }
+
         if (pageId === 'page-home') renderHome();
         if (pageId === 'page-suibi') renderSuibiList();
         if (pageId === 'page-zaji') renderZajiPage();
@@ -51,7 +58,7 @@
     }
 
     // ============================================================
-    // 内部跳转（data-sub / data-back）
+    // 内部跳转
     // ============================================================
     document.addEventListener('click', function(e) {
         var target = e.target.closest('[data-sub]');
@@ -91,7 +98,7 @@
     }
 
     // ============================================================
-    // header 高度 → CSS 变量（供竖线定位使用）
+    // header 高度
     // ============================================================
     function updateHeaderHeight() {
         var header = document.querySelector('.site-header');
@@ -101,132 +108,552 @@
     }
 
     // ============================================================
-    // 打字机
+    // ★ Banner 碎片拼合（完整）
     // ============================================================
-    var bannerFullText = '写信告诉我，今夜你想要梦什么';
-    var bannerTextEl = document.getElementById('bannerText');
-    var bannerBtnEl = document.getElementById('bannerBtn');
-    var typewriterTimer = null;
-    var typewriterDone = false;
+    var bannerCurrentStep = 0;
 
-    function startTypewriter() {
-        if (typewriterDone || !bannerTextEl) return;
-        var index = 0;
-        bannerTextEl.innerHTML = '<span class="cursor"></span>';
-        typewriterTimer = setInterval(function() {
-            if (index < bannerFullText.length) {
-                var current = bannerFullText.substring(0, index + 1);
-                bannerTextEl.innerHTML = current + '<span class="cursor"></span>';
-                index++;
-            } else {
-                clearInterval(typewriterTimer);
-                typewriterTimer = null;
-                typewriterDone = true;
-                setTimeout(function() {
-                    bannerTextEl.innerHTML = bannerFullText;
-                    if (bannerBtnEl) bannerBtnEl.classList.add('show');
-                }, 400);
-            }
-        }, 120);
-    }
+    var BANNER_CONFIG = {
+        imageUrl: 'banner.jpg',    // ★ 换成你的图片
+        cols: 6,
+        rows: 4,
+        randomStage1Count: 4,
+        randomStage2Count: 6,
+        fixedStageCounts: { 3: 6, 4: 6, 5: 6, 6: 0 },
+        random: {
+            offset: 260,
+            rotate: 25,
+            scaleMin: 0.55,
+            scaleMax: 1.05,
+            blurMin: 6,
+            blurMax: 14
+        },
+        rainAngle: -15,
+        rainCount: 80,
+        rainSpeedMin: 8,
+        rainSpeedMax: 16,
+        rainWidth: 2.2,
+        rainLengthMin: 18,
+        rainLengthMax: 34,
+        autoStartDelay: 2000,
+        autoInterval: 1500,
+        autoResumeDelay: 2000,
+        autoEndStep: 7
+    };
 
-  // ============================================================
-// Banner 高亮：自动播放 + 鼠标跟随
-// ============================================================
-function initBannerHighlight() {
-    var banner = document.getElementById('banner');
-    var auto = document.getElementById('bannerAuto');
-    var mouse = document.getElementById('bannerHighlight');
-    if (!banner || !auto || !mouse) return;
+    var bannerState = {
+        randomFragments: [],
+        fixedFragments: {},
+        fixedRevealed: {},
+        wheelLock: false,
+        autoPlayTimer: null,
+        autoStartTimer: null,
+        autoResumeTimer: null,
+        autoPlaying: false,
+        autoFinished: false,
+        typewriterDone: false,
+        rainStarted: false,
+        rainRAF: null,
+        rainDrops: []
+    };
 
-    var GRID = 50;             // 与 .banner background-size 一致
-    var STEP_MS = 350;         // 每格停留时间（越大越慢）
-    var COLS = 0;              // 列数
-    var ROWS = 0;              // 行数
+    function initBannerFragments() {
+        var banner = document.getElementById('banner');
+        var randomLayer = document.getElementById('randomLayer');
+        var fixedLayer = document.getElementById('fixedLayer');
+        var fullLayer = document.getElementById('bannerFull');
+        var rainCanvas = document.getElementById('bannerRain');
+        var siteHeader = document.getElementById('siteHeader');
 
-    var autoIndex = 0;
-    var autoTimer = null;
+        if (!banner || !randomLayer || !fixedLayer) return;
 
-    // 计算格子行列数
-    function calcGrid() {
-        var rect = banner.getBoundingClientRect();
-        COLS = Math.floor(rect.width / GRID);
-        ROWS = Math.floor(rect.height / GRID);
-    }
+        var COLS = BANNER_CONFIG.cols;
+        var ROWS = BANNER_CONFIG.rows;
+        var TOTAL = COLS * ROWS;
 
-    // 自动播放：按顺序移动
-    function autoNext() {
-        if (COLS === 0 || ROWS === 0) return;
-        var total = COLS * ROWS;
-        var idx = autoIndex % total;
-
-        var col = idx % COLS;
-        var row = Math.floor(idx / COLS);
-
-        auto.style.left = (col * GRID) + 'px';
-        auto.style.top  = (row * GRID) + 'px';
-        auto.classList.add('show');
-
-        autoIndex++;
-        if (autoIndex >= total) autoIndex = 0;  // 循环
-    }
-
-    function startAuto() {
-        if (autoTimer) return;
-        // 先立即执行一次，避免等 350ms
-        autoNext();
-        autoTimer = setInterval(autoNext, STEP_MS);
-    }
-
-    function stopAuto() {
-        if (autoTimer) {
-            clearInterval(autoTimer);
-            autoTimer = null;
+        function setRandomState(el) {
+            var rg = BANNER_CONFIG.random;
+            el.style.setProperty('--dx', (Math.random() * rg.offset * 2 - rg.offset).toFixed(1) + 'px');
+            el.style.setProperty('--dy', (Math.random() * rg.offset * 2 - rg.offset).toFixed(1) + 'px');
+            el.style.setProperty('--rot', (Math.random() * rg.rotate * 2 - rg.rotate).toFixed(1) + 'deg');
+            el.style.setProperty('--scale',
+                (rg.scaleMin + Math.random() * (rg.scaleMax - rg.scaleMin)).toFixed(2));
+            el.style.setProperty('--blur',
+                (rg.blurMin + Math.random() * (rg.blurMax - rg.blurMin)).toFixed(1) + 'px');
         }
-        auto.classList.remove('show');
+
+        function createFixedFragments() {
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+            var cellW = vw / COLS;
+            var cellH = vh / ROWS;
+
+            var id = 1;
+            for (var r = 0; r < ROWS; r++) {
+                for (var c = 0; c < COLS; c++) {
+                    var x = c * cellW;
+                    var y = r * cellH;
+
+                    var el = document.createElement('div');
+                    el.className = 'fixed-fragment';
+                    el.dataset.id = id;
+                    el.style.width = cellW + 'px';
+                    el.style.height = cellH + 'px';
+                    el.style.left = x + 'px';
+                    el.style.top = y + 'px';
+                    el.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                    el.style.backgroundSize = vw + 'px ' + vh + 'px';
+                    el.style.backgroundPosition = '-' + x + 'px -' + y + 'px';
+
+                    fixedLayer.appendChild(el);
+                    bannerState.fixedFragments[id] = el;
+                    id++;
+                }
+            }
+        }
+
+        function spawnRandomFragments(count) {
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+            var cellW = vw / COLS;
+            var cellH = vh / ROWS;
+
+            for (var i = 0; i < count; i++) {
+                var c = Math.floor(Math.random() * COLS);
+                var r = Math.floor(Math.random() * ROWS);
+                var x = c * cellW;
+                var y = r * cellH;
+
+                var el = document.createElement('div');
+                el.className = 'random-fragment';
+                el.style.width = cellW + 'px';
+                el.style.height = cellH + 'px';
+                el.style.left = x + 'px';
+                el.style.top = y + 'px';
+                el.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                el.style.backgroundSize = vw + 'px ' + vh + 'px';
+                el.style.backgroundPosition = '-' + x + 'px -' + y + 'px';
+
+                setRandomState(el);
+
+                randomLayer.appendChild(el);
+                bannerState.randomFragments.push(el);
+
+                (function(element) {
+                    requestAnimationFrame(function() {
+                        element.classList.add('show');
+                    });
+                })(el);
+            }
+        }
+
+        function clearRandomFragmentsInstant() {
+            for (var i = 0; i < bannerState.randomFragments.length; i++) {
+                var el = bannerState.randomFragments[i];
+                if (el.parentNode) el.parentNode.removeChild(el);
+            }
+            bannerState.randomFragments = [];
+        }
+
+        function appendRandomFixed(count) {
+            var pool = [];
+            for (var id = 1; id <= TOTAL; id++) {
+                if (!bannerState.fixedRevealed[id]) pool.push(id);
+            }
+            for (var i = pool.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+            }
+            var pick = pool.slice(0, count);
+            for (var k = 0; k < pick.length; k++) {
+                var id2 = pick[k];
+                bannerState.fixedRevealed[id2] = true;
+                bannerState.fixedFragments[id2].classList.add('show');
+            }
+        }
+
+        function appendRest() {
+            for (var id = 1; id <= TOTAL; id++) {
+                if (!bannerState.fixedRevealed[id]) {
+                    bannerState.fixedRevealed[id] = true;
+                    bannerState.fixedFragments[id].classList.add('show');
+                }
+            }
+        }
+
+        function hideAllFixed() {
+            for (var id = 1; id <= TOTAL; id++) {
+                bannerState.fixedRevealed[id] = false;
+                bannerState.fixedFragments[id].classList.remove('show');
+            }
+        }
+
+        function startTypewriter() {
+            if (bannerState.typewriterDone) return;
+            bannerState.typewriterDone = true;
+
+            var text = '写信告诉我，今夜你想要梦什么';
+            var el = document.getElementById('bannerText');
+            if (!el) return;
+            var index = 0;
+            el.innerHTML = '<span class="cursor"></span>';
+
+            var timer = setInterval(function() {
+                if (index < text.length) {
+                    el.innerHTML = text.substring(0, index + 1) + '<span class="cursor"></span>';
+                    index++;
+                } else {
+                    clearInterval(timer);
+                    setTimeout(function() {
+                        el.innerHTML = text;
+                    }, 400);
+                }
+            }, 120);
+        }
+
+        function applyStep(step) {
+            bannerCurrentStep = step;
+
+            // 阶段 7：放大 + 下雨 + 显示文字 + 显示 header + 解锁
+            if (step === 7) {
+                fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                fixedLayer.style.opacity = '0';
+                fullLayer.classList.add('show');
+                fullLayer.classList.add('zoom');
+                rainCanvas.classList.add('show');
+                startRain();
+
+                setTimeout(function() {
+                    var overlay = document.getElementById('bannerOverlay');
+                    if (overlay) overlay.classList.add('show');
+                    var hint = document.getElementById('bannerScrollHint');
+                    if (hint) hint.classList.add('hide');
+
+                    // ★ 显示 header
+                    if (siteHeader) siteHeader.classList.add('visible');
+                    // 更新 header 高度，供竖线定位
+                    updateHeaderHeight();
+
+                    // ★ 解锁滚动
+                    document.body.classList.remove('banner-locked');
+
+                    startTypewriter();
+                }, 800);
+                return;
+            }
+
+            // 阶段 0：全黑
+            if (step === 0) {
+                stopRain();
+                fullLayer.classList.remove('zoom');
+                fullLayer.classList.remove('show');
+                fixedLayer.style.opacity = '1';
+                clearRandomFragmentsInstant();
+                hideAllFixed();
+
+                // 隐藏 header + 锁屏 + 隐藏文字
+                if (siteHeader) siteHeader.classList.remove('visible');
+                document.body.classList.add('banner-locked');
+                var overlay0 = document.getElementById('bannerOverlay');
+                if (overlay0) overlay0.classList.remove('show');
+                var hint0 = document.getElementById('bannerScrollHint');
+                if (hint0) hint0.classList.remove('hide');
+                return;
+            }
+
+            // 阶段 1
+            if (step === 1) {
+                stopRain();
+                fullLayer.classList.remove('zoom');
+                fullLayer.classList.remove('show');
+                fixedLayer.style.opacity = '1';
+                clearRandomFragmentsInstant();
+                hideAllFixed();
+                spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
+                return;
+            }
+
+            // 阶段 2
+            if (step === 2) {
+                stopRain();
+                fullLayer.classList.remove('zoom');
+                fullLayer.classList.remove('show');
+                fixedLayer.style.opacity = '1';
+                clearRandomFragmentsInstant();
+                hideAllFixed();
+                spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
+                spawnRandomFragments(BANNER_CONFIG.randomStage2Count);
+                return;
+            }
+
+            // 阶段 3
+            if (step === 3) {
+                stopRain();
+                fullLayer.classList.remove('zoom');
+                fullLayer.classList.remove('show');
+                fixedLayer.style.opacity = '1';
+                clearRandomFragmentsInstant();
+                hideAllFixed();
+                appendRandomFixed(BANNER_CONFIG.fixedStageCounts[3]);
+                return;
+            }
+
+            // 阶段 4、5
+            if (step === 4) { appendRandomFixed(BANNER_CONFIG.fixedStageCounts[4]); return; }
+            if (step === 5) { appendRandomFixed(BANNER_CONFIG.fixedStageCounts[5]); return; }
+
+            // 阶段 6
+            if (step === 6) {
+                appendRest();
+                setTimeout(function() {
+                    fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                    fixedLayer.style.opacity = '0';
+                    fullLayer.classList.add('show');
+                }, 800);
+                return;
+            }
+        }
+
+        function replayToStep(target) {
+            stopRain();
+            fullLayer.classList.remove('zoom');
+            fullLayer.classList.remove('show');
+            fixedLayer.style.opacity = '1';
+            clearRandomFragmentsInstant();
+            hideAllFixed();
+
+            // ★ 回退到 <7：隐藏 header + 重新锁屏 + 隐藏文字 + 重置打字机
+            if (target < 7) {
+                if (siteHeader) siteHeader.classList.remove('visible');
+                document.body.classList.add('banner-locked');
+                var overlay = document.getElementById('bannerOverlay');
+                if (overlay) overlay.classList.remove('show');
+                var hint = document.getElementById('bannerScrollHint');
+                if (hint) hint.classList.remove('hide');
+                bannerState.typewriterDone = false;
+                var txt = document.getElementById('bannerText');
+                if (txt) txt.innerHTML = '';
+            }
+
+            for (var s = 1; s <= target; s++) {
+                if (s === 1) spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
+                if (s === 2) {
+                    clearRandomFragmentsInstant();
+                    spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
+                    spawnRandomFragments(BANNER_CONFIG.randomStage2Count);
+                }
+                if (s === 3) {
+                    clearRandomFragmentsInstant();
+                    hideAllFixed();
+                    appendRandomFixed(BANNER_CONFIG.fixedStageCounts[3]);
+                }
+                if (s === 4) appendRandomFixed(BANNER_CONFIG.fixedStageCounts[4]);
+                if (s === 5) appendRandomFixed(BANNER_CONFIG.fixedStageCounts[5]);
+                if (s === 6) {
+                    appendRest();
+                    fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                    fixedLayer.style.opacity = '0';
+                    fullLayer.classList.add('show');
+                }
+                if (s === 7) {
+                    applyStep(7);
+                    return;
+                }
+            }
+
+            bannerCurrentStep = target;
+        }
+
+        function startAutoPlay() {
+            if (bannerState.autoPlaying || bannerState.autoFinished) return;
+            if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
+                bannerState.autoFinished = true;
+                return;
+            }
+            bannerState.autoPlaying = true;
+
+            bannerState.autoPlayTimer = setInterval(function() {
+                if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
+                    stopAutoPlay();
+                    bannerState.autoFinished = true;
+                    return;
+                }
+                bannerCurrentStep++;
+                applyStep(bannerCurrentStep);
+            }, BANNER_CONFIG.autoInterval);
+        }
+
+        function stopAutoPlay() {
+            bannerState.autoPlaying = false;
+            if (bannerState.autoPlayTimer) {
+                clearInterval(bannerState.autoPlayTimer);
+                bannerState.autoPlayTimer = null;
+            }
+        }
+
+        function scheduleAutoResume() {
+            if (bannerState.autoResumeTimer) {
+                clearTimeout(bannerState.autoResumeTimer);
+                bannerState.autoResumeTimer = null;
+            }
+            if (bannerState.autoFinished) return;
+            if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
+                bannerState.autoFinished = true;
+                return;
+            }
+            bannerState.autoResumeTimer = setTimeout(function() {
+                bannerState.autoResumeTimer = null;
+                startAutoPlay();
+            }, BANNER_CONFIG.autoResumeDelay);
+        }
+
+        function handleUserScroll(direction) {
+            stopAutoPlay();
+            if (bannerState.autoResumeTimer) {
+                clearTimeout(bannerState.autoResumeTimer);
+                bannerState.autoResumeTimer = null;
+            }
+            if (bannerState.autoStartTimer) {
+                clearTimeout(bannerState.autoStartTimer);
+                bannerState.autoStartTimer = null;
+            }
+
+            if (bannerState.wheelLock) return;
+
+            if (direction > 0) {
+                if (bannerCurrentStep >= 7) return;
+                bannerState.wheelLock = true;
+                bannerCurrentStep++;
+                applyStep(bannerCurrentStep);
+                setTimeout(function() { bannerState.wheelLock = false; }, 700);
+            } else if (direction < 0) {
+                if (bannerCurrentStep <= 0) return;
+                bannerState.wheelLock = true;
+                bannerCurrentStep--;
+                replayToStep(bannerCurrentStep);
+                setTimeout(function() { bannerState.wheelLock = false; }, 700);
+            }
+
+            if (bannerCurrentStep < BANNER_CONFIG.autoEndStep) {
+                bannerState.autoFinished = false;
+            }
+
+            scheduleAutoResume();
+        }
+
+        // 滚轮 / 触摸（只在序章页且 Banner 未完成时拦截）
+        window.addEventListener('wheel', function(e) {
+            var homeActive = document.getElementById('page-home').classList.contains('active');
+            if (!homeActive) return;
+            if (bannerCurrentStep >= 7) return;
+            e.preventDefault();
+            handleUserScroll(e.deltaY);
+        }, { passive: false });
+
+        var touchStartY = 0;
+        window.addEventListener('touchstart', function(e) {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        window.addEventListener('touchend', function(e) {
+            var homeActive = document.getElementById('page-home').classList.contains('active');
+            if (!homeActive) return;
+            if (bannerCurrentStep >= 7) return;
+            var dy = touchStartY - e.changedTouches[0].clientY;
+            if (dy > 50) handleUserScroll(1);
+            else if (dy < -50) handleUserScroll(-1);
+        }, { passive: true });
+
+        // ============================================================
+        // 下雨
+        // ============================================================
+        function startRain() {
+            if (bannerState.rainStarted) return;
+            bannerState.rainStarted = true;
+
+            rainCanvas.width = banner.offsetWidth;
+            rainCanvas.height = banner.offsetHeight;
+
+            var ctx = rainCanvas.getContext('2d');
+            var angleRad = BANNER_CONFIG.rainAngle * Math.PI / 180;
+            var sinA = Math.sin(angleRad);
+            var cosA = Math.cos(angleRad);
+
+            bannerState.rainDrops = [];
+            for (var i = 0; i < BANNER_CONFIG.rainCount; i++) {
+                bannerState.rainDrops.push({
+                    x: Math.random() * rainCanvas.width,
+                    y: Math.random() * rainCanvas.height,
+                    len: BANNER_CONFIG.rainLengthMin +
+                         Math.random() * (BANNER_CONFIG.rainLengthMax - BANNER_CONFIG.rainLengthMin),
+                    speed: BANNER_CONFIG.rainSpeedMin +
+                           Math.random() * (BANNER_CONFIG.rainSpeedMax - BANNER_CONFIG.rainSpeedMin),
+                    alpha: 0.18 + Math.random() * 0.35
+                });
+            }
+
+            function drawRain() {
+                if (!bannerState.rainStarted) return;
+                ctx.clearRect(0, 0, rainCanvas.width, rainCanvas.height);
+
+                for (var i = 0; i < bannerState.rainDrops.length; i++) {
+                    var d = bannerState.rainDrops[i];
+                    var endX = d.x + d.len * sinA;
+                    var endY = d.y + d.len * cosA;
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(200, 220, 255, ' + d.alpha + ')';
+                    ctx.lineWidth = BANNER_CONFIG.rainWidth;
+                    ctx.lineCap = 'round';
+                    ctx.moveTo(d.x, d.y);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+
+                    d.x += d.speed * sinA;
+                    d.y += d.speed * cosA;
+
+                    if (d.y > rainCanvas.height + 30) {
+                        d.y = -30;
+                        d.x = Math.random() * (rainCanvas.width + 100) - 50;
+                    }
+                    if (d.x < -30) {
+                        d.x = rainCanvas.width + 20;
+                        d.y = Math.random() * rainCanvas.height * 0.5 - 100;
+                    }
+                }
+                bannerState.rainRAF = requestAnimationFrame(drawRain);
+            }
+            drawRain();
+        }
+
+        function stopRain() {
+            if (!bannerState.rainStarted) return;
+            bannerState.rainStarted = false;
+            if (bannerState.rainRAF) cancelAnimationFrame(bannerState.rainRAF);
+            bannerState.rainRAF = null;
+            var ctx = rainCanvas.getContext('2d');
+            ctx.clearRect(0, 0, rainCanvas.width, rainCanvas.height);
+        }
+
+        // ============================================================
+        // 初始化
+        // ============================================================
+        createFixedFragments();
+
+        // ★ 初始锁屏，header 隐藏（CSS 已默认隐藏）
+        document.body.classList.add('banner-locked');
+
+        bannerState.autoStartTimer = setTimeout(function() {
+            bannerState.autoStartTimer = null;
+            startAutoPlay();
+        }, BANNER_CONFIG.autoStartDelay);
     }
 
-    // 鼠标跟随
-    banner.addEventListener('mousemove', function(e) {
-        var rect = banner.getBoundingClientRect();
-        var x = e.clientX - rect.left;
-        var y = e.clientY - rect.top;
-        var col = Math.floor(x / GRID);
-        var row = Math.floor(y / GRID);
-
-        mouse.style.left = (col * GRID) + 'px';
-        mouse.style.top  = (row * GRID) + 'px';
-        mouse.classList.add('show');
-
-        // 鼠标进入时暂停自动播放
-        stopAuto();
-    });
-
-    banner.addEventListener('mouseleave', function() {
-        mouse.classList.remove('show');
-        // 鼠标离开后恢复自动播放
-        startAuto();
-    });
-
-    // 初始化
-    calcGrid();
-    startAuto();
-
-    // 窗口 resize 时重新计算
-    window.addEventListener('resize', function() {
-        calcGrid();
-    });
-}
     // ============================================================
-    // 随笔卡片生成器（首页 4 列布局用）
+    // 首页渲染
     // ============================================================
     function buildEssayCard(data) {
         if (!data) {
-            return '<div class="essay-cell essay-card">' +
-                '<div class="essay-text essay-empty">...</div>' +
-                '</div>';
+            return '<div class="essay-cell essay-card"><div class="essay-text essay-empty">...</div></div>';
         }
-        // 首页卡片只显示日期部分
         var dateShort = (data.date || '').split(' ')[0];
         return '<div class="essay-cell essay-card">' +
             '<div class="essay-text">' + (data.content || '') + '</div>' +
@@ -234,40 +661,32 @@ function initBannerHighlight() {
             '</div>';
     }
 
-    // ============================================================
-    // 序章首页
-    // ============================================================
     async function renderHome() {
         var site = await getSite();
         updateLogo(site);
 
-        // ① 随笔：4 列交替空白布局
         var suibiList = await DB.getAll('suibi', { orderBy: 'id' });
         var essayContainer = document.getElementById('homeSuibi');
         if (essayContainer) {
-            var displayList = suibiList.slice(-6);
+            var displayList = suibiList.slice(0, 6);
             while (displayList.length < 6) displayList.push(null);
 
             var html = '';
-            // 第一行：空白 + 卡1 + 卡2 + 卡3
             html += '<div class="essay-cell essay-blank essay-blank-left"><span class="essay-mark"></span></div>';
             html += buildEssayCard(displayList[0]);
             html += buildEssayCard(displayList[1]);
             html += buildEssayCard(displayList[2]);
-            // 第二行：卡4 + 卡5 + 卡6 + 空白
             html += buildEssayCard(displayList[3]);
             html += buildEssayCard(displayList[4]);
             html += buildEssayCard(displayList[5]);
             html += '<div class="essay-cell essay-blank essay-blank-right"><span class="essay-mark"></span></div>';
-
             essayContainer.innerHTML = html;
         }
 
-        // ② 杂记：最新 3 条
         var zajiList = await DB.getAll('zaji', { orderBy: 'id' });
         var noteContainer = document.getElementById('homeZaji');
         if (noteContainer) {
-            var latestThree = zajiList.slice(-3).reverse();
+            var latestThree = zajiList.slice(0, 3);
             var html2 = '';
             for (var j = 0; j < latestThree.length; j++) {
                 var z = latestThree[j];
@@ -286,35 +705,33 @@ function initBannerHighlight() {
             }
             noteContainer.innerHTML = html2;
         }
-
-        if (!typewriterDone) startTypewriter();
     }
 
     // ============================================================
-    // 随笔页面（3 列卡片，日期到时分秒）
-  async function renderSuibiList() {
-    var list = await DB.getAll('suibi', { orderBy: 'id' });
-    var container = document.getElementById('suibiList');
-    if (!container) return;
+    // 随笔页面
+    // ============================================================
+    async function renderSuibiList() {
+        var list = await DB.getAll('suibi', { orderBy: 'id' });
+        var container = document.getElementById('suibiList');
+        if (!container) return;
 
-    // DB.getAll 已倒序（最新在前），直接用
-    if (list.length === 0) {
-        container.innerHTML = '<div class="suibi-empty">暂无随笔</div>';
-        return;
-    }
+        if (list.length === 0) {
+            container.innerHTML = '<div class="suibi-empty">暂无随笔</div>';
+            return;
+        }
 
-    var html = '';
-    for (var i = 0; i < list.length; i++) {
-        var item = list[i];
-        html += '<div class="suibi-card">';
-        html += '  <div class="suibi-card-head">';
-        html += '    <span class="suibi-date">' + (item.date || '') + '</span>';
-        html += '  </div>';
-        html += '  <div class="suibi-card-body">' + (item.content || '') + '</div>';
-        html += '</div>';
+        var html = '';
+        for (var i = 0; i < list.length; i++) {
+            var item = list[i];
+            html += '<div class="suibi-card">';
+            html += '  <div class="suibi-card-head">';
+            html += '    <span class="suibi-date">' + (item.date || '') + '</span>';
+            html += '  </div>';
+            html += '  <div class="suibi-card-body">' + (item.content || '') + '</div>';
+            html += '</div>';
+        }
+        container.innerHTML = html;
     }
-    container.innerHTML = html;
-}
 
     // ============================================================
     // 杂记页面
@@ -360,16 +777,14 @@ function initBannerHighlight() {
             });
         }
 
-        var sorted = filtered.slice().reverse();
-
-        if (sorted.length === 0) {
+        if (filtered.length === 0) {
             container.innerHTML = '<p style="text-align:center;color:#999999;padding:40px 0;">暂无文章</p>';
             return;
         }
 
         var html = '';
-        for (var i = 0; i < sorted.length; i++) {
-            var item = sorted[i];
+        for (var i = 0; i < filtered.length; i++) {
+            var item = filtered[i];
             html += '<div class="zaji-article-item">';
             html += '<a class="zaji-article-title" data-sub="zaji-detail" data-id="' + item.id + '">' + (item.title || '无标题') + '</a>';
             html += '<span class="zaji-article-tag">#' + (item.category || '未分类') + '</span>';
@@ -397,13 +812,9 @@ function initBannerHighlight() {
                     }
                 }
             });
-            return;
         }
     });
 
-    // ============================================================
-    // 杂记详情
-    // ============================================================
     async function loadZajiDetail(id) {
         var item = await DB.getById('zaji', id);
         if (!item) return;
@@ -420,11 +831,10 @@ function initBannerHighlight() {
     // ============================================================
     // 闲话
     // ============================================================
- async function renderXianhua() {
-    var list = await DB.getAll('xianhua');
-    var content = list.length > 0 ? (list[0].content || '') : '';
-    var container = document.getElementById('xianhuaContent');
-    if (!container) return;
+    async function renderXianhua() {
+        var list = await DB.getAll('xianhua');
+        var content = list.length > 0 ? (list[0].content || '') : '';
+        var container = document.getElementById('xianhuaContent');
         if (!container) return;
         var lines = content.split('\n');
         var html = '';
@@ -439,10 +849,13 @@ function initBannerHighlight() {
     // 初始化
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
+        initBannerFragments();
+        renderHome();
         updateHeaderHeight();
-        showPage('page-home');
-        initBannerHighlight();
     });
 
-    window.addEventListener('resize', updateHeaderHeight);
+    window.addEventListener('resize', function() {
+        updateHeaderHeight();
+    });
+
 })();
