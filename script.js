@@ -364,10 +364,11 @@
     // ============================================================
     // 闲话
     // ============================================================
-    async function renderXianhua() {
-        var list = await DB.getAll('xianhua');
-        var content = list.length > 0 ? (list[0].content || '') : '';
-        var container = document.getElementById('xianhuaContent');
+ async function renderXianhua() {
+    var list = await DB.getAll('xianhua');
+    var content = list.length > 0 ? (list[0].content || '') : '';
+    var container = document.getElementById('xianhuaContent');
+    if (!container) return;
         if (!container) return;
         var lines = content.split('\n');
         var html = '';
