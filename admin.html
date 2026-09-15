@@ -70,19 +70,25 @@
                     <tbody id="suibi-list"></tbody>
                 </table>
             </div>
-            <div class="modal-overlay" id="suibiModal">
-                <div class="modal-box">
-                    <button class="modal-close" onclick="closeSuibiForm()">×</button>
-                    <h3 id="suibiModalTitle">编辑短句</h3>
-                    <input type="hidden" id="suibi-edit-id">
-                    <div class="form-group"><label>短句内容</label><textarea id="suibi-content" rows="2"></textarea></div>
-                    <div class="form-group"><label>日期 (YYYY/MM/DD)</label><input type="text" id="suibi-date"></div>
-                    <div class="modal-actions">
-                        <button class="btn" onclick="closeSuibiForm()">取消</button>
-                        <button class="btn btn-primary" onclick="saveSuibi()">保存</button>
-                    </div>
-                </div>
-            </div>
+           <div class="modal-overlay" id="suibiModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeSuibiForm()">×</button>
+        <h3 id="suibiModalTitle">编辑随笔</h3>
+        <input type="hidden" id="suibi-edit-id">
+        <div class="form-group">
+            <label>随笔内容</label>
+            <textarea id="suibi-content" rows="6"></textarea>
+        </div>
+        <div class="form-group">
+            <label>提交时间</label>
+            <input type="text" id="suibi-date" readonly style="color:#999999;cursor:default;">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeSuibiForm()">取消</button>
+            <button class="btn btn-primary" onclick="saveSuibi()">保存</button>
+        </div>
+    </div>
+</div>
         </section>
 
         <section id="panel-zaji" class="panel">
