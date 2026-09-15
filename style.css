@@ -457,12 +457,12 @@ a {
 
 /* 卡片上部分：日期 */
 .suibi-card-head {
-    height: 50px;
+    height: 40px;
     padding: 0 20px;
     display: flex;
     align-items: center;
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
-    font-size: 13px;
+    font-size: 12px;
     color: #999999;
     letter-spacing: 0.5px;
 }
@@ -474,7 +474,7 @@ a {
 /* 卡片下部分：内容（高度自适应） */
 .suibi-card-body {
     padding: 20px;
-    font-size: 13px;
+    font-size: 15px;
     line-height: 2;
     color: #ffffff;
     word-wrap: break-word;
