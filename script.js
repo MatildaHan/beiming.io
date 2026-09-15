@@ -217,36 +217,54 @@
         if (!typewriterDone) startTypewriter();
     }
 
-    // ============================================================
-    // 随笔列表
-    // ============================================================
-    async function renderSuibiList() {
-        var list = await DB.getAll('suibi', { orderBy: 'id' });
-        var container = document.getElementById('suibiList');
-        if (!container) return;
+   // ============================================================
+// 随笔列表（3 列卡片，日期到秒）
+// ============================================================
+async function renderSuibiList() {
+    var list = await DB.getAll('suibi', { orderBy: 'id' });
+    var container = document.getElementById('suibiList');
+    if (!container) return;
 
-        var leftHtml = '';
-        var rightHtml = '';
+    // 数据倒序（最新在前）
+    var sorted = list.slice().reverse();
 
-        for (var i = 0; i < list.length; i++) {
-            var item = list[i];
-            var colIndex = Math.floor(i / 2);
-            var z = list.length - colIndex;
-
-            var card = '<div class="article-item" style="z-index:' + z + ';">';
-            card += '  <div class="article-date">' + (item.date || '') + '</div>';
-            card += '  <div class="article-text">' + (item.content || '') + '</div>';
-            card += '</div>';
-
-            if (i % 2 === 0) leftHtml += card;
-            else rightHtml += card;
-        }
-
-        container.innerHTML =
-            '<div class="suibi-col">' + leftHtml + '</div>' +
-            '<div class="suibi-col">' + rightHtml + '</div>';
+    if (sorted.length === 0) {
+        container.innerHTML = '<div class="suibi-empty">暂无随笔</div>';
+        return;
     }
 
+    var html = '';
+    for (var i = 0; i < sorted.length; i++) {
+        var item = sorted[i];
+        // 补齐日期到时分秒
+        var dateStr = formatDateTime(item.date);
+
+        html += '<div class="suibi-card">';
+        html += '  <div class="suibi-card-head">';
+        html += '    <span class="suibi-date">' + dateStr + '</span>';
+        html += '  </div>';
+        html += '  <div class="suibi-card-body">' + (item.content || '') + '</div>';
+        html += '</div>';
+    }
+    container.innerHTML = html;
+}
+
+// 日期格式化：把 "2026/09/15" 补齐为 "2026-09-15 14:00:00"
+function formatDateTime(raw) {
+    if (!raw) return '';
+    // 统一分隔符
+    var s = String(raw).replace(/\//g, '-').trim();
+    // 如果已经包含时间和秒
+    if (/\d{1,2}:\d{2}:\d{2}/.test(s)) {
+        return s;
+    }
+    // 如果只包含到分
+    if (/\d{1,2}:\d{2}/.test(s)) {
+        return s + ':00';
+    }
+    // 只有日期 → 补 00:00:00
+    return s + ' 00:00:00';
+}
     // ============================================================
     // 杂记页面
     // ============================================================
