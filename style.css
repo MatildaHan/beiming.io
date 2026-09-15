@@ -671,20 +671,51 @@ a {
         display: none;
     }
 /* ============================================================
-   闲话
+   闲话页面
    ============================================================ */
-.about-text { padding: 40px 0; }
+.xianhua-page {
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+}
+
+/* 版心左右竖线：从 header 下沿贯穿到页面底部 */
+.xianhua-page::before,
+.xianhua-page::after {
+    content: '';
+    position: fixed;
+    top: var(--header-height, 100px);
+    bottom: 0;
+    width: 1px;
+    background: rgba(153, 153, 153, 0.5);
+    z-index: 1;
+    pointer-events: none;
+}
+.xianhua-page::before { left: calc(50% - 720px); }
+.xianhua-page::after  { right: calc(50% - 720px); }
+
+/* ===== 个人简介文字 ===== */
+.about-text {
+    padding: 40px 0;
+}
 .about-text p {
     font-size: 15px;
     font-weight: 500;
     margin-bottom: 8px;
     color: #ffffff;
 }
+
+/* ===== 分隔线（横向） ===== */
 .about-divider {
     border: none;
     border-top: 1px solid rgba(153, 153, 153, 0.5);
     margin: 40px -60px 32px -60px;
     width: calc(100% + 120px);
+}
+
+/* ===== 友链区域 ===== */
+.about-links {
+    padding: 0;
 }
 .links-title {
     font-size: 14px;
@@ -692,6 +723,8 @@ a {
     margin-bottom: 16px;
     font-weight: 400;
 }
+
+/* ===== 站点信息表格 ===== */
 .site-info {
     display: flex;
     flex-direction: column;
@@ -703,7 +736,9 @@ a {
     align-items: stretch;
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
 }
-.site-info-item:last-child { border-bottom: none; }
+.site-info-item:last-child {
+    border-bottom: none;
+}
 .site-info-label {
     display: flex;
     align-items: center;
@@ -724,35 +759,24 @@ a {
     flex: 1;
     word-break: break-all;
 }
-/* ============================================================
-   闲话页面（版心左右竖线从 header 下沿拉满）
-   ============================================================ */
-.xianhua-page {
-    width: 100%;
-    position: relative;
-    box-sizing: border-box;
-}
 
-/* 竖线：从 header 下沿开始，贯穿到底部 */
-.xianhua-page::before,
-.xianhua-page::after {
-    content: '';
-    position: fixed;
-    top: var(--header-height, 100px);
-    bottom: 0;
-    width: 1px;
-    background: rgba(153, 153, 153, 0.5);
-    z-index: 1;
-    pointer-events: none;
-}
-.xianhua-page::before { left: calc(50% - 720px); }
-.xianhua-page::after  { right: calc(50% - 720px); }
-
-/* 窄屏隐藏 */
+/* ===== 窄屏隐藏竖线 ===== */
 @media (max-width: 1500px) {
     .xianhua-page::before,
     .xianhua-page::after {
         display: none;
+    }
+    .about-divider {
+        margin-left: -40px;
+        margin-right: -40px;
+        width: calc(100% + 80px);
+    }
+}
+@media (max-width: 768px) {
+    .about-divider {
+        margin-left: -20px;
+        margin-right: -20px;
+        width: calc(100% + 40px);
     }
 }
 /* ============================================================
