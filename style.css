@@ -5,6 +5,10 @@
     box-sizing: border-box;
 }
 
+html {
+    overflow-y: scroll;   /* 始终预留滚动条槽，避免页面切换时 header 偏移 */
+}
+
 body {
     background: #0C0A09;
     color: #ffffff;
@@ -13,9 +17,6 @@ body {
     line-height: 1.8;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
-}
-html {
-    overflow-y: scroll;
 }
 
 a {
@@ -32,8 +33,8 @@ a {
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
 }
 .header-wrap {
-    width: 100%;
-    max-width: 1440px;
+    width: 1440px;
+    max-width: 100%;
     margin: 0 auto;
     padding: 0 60px 30px;
     box-sizing: border-box;
@@ -193,9 +194,8 @@ a {
     background: #d8cec4;
     border-color: #d8cec4;
 }
-/* ============================================================
-   Banner 鼠标高亮块（跟随鼠标所在 50×50 格子）
-   ============================================================ */
+
+/* Banner 鼠标高亮块 */
 .banner-highlight {
     position: absolute;
     width: 50px;
@@ -211,8 +211,9 @@ a {
 .banner-highlight.show {
     opacity: 1;
 }
+
 /* ============================================================
-   间隔条（50px 空白 + 上下两条通栏分割线 + 版心左右竖线）
+   间隔条（50px 空白 + 上下两条通栏分割线）
    ============================================================ */
 .gap-divider {
     width: 100vw;
@@ -236,7 +237,7 @@ a {
 .gap-divider::after  { right: calc(50% - 720px); }
 
 /* ============================================================
-   随笔区（4 列布局，交替空白）
+   随笔区（首页，4 列交替空白）
    ============================================================ */
 .essay-section {
     width: calc(100% + 120px);
@@ -277,11 +278,9 @@ a {
 .essay-cell:nth-child(4n) {
     border-right: none;
 }
-/* 第一行（前 4 格）加底边框 */
 .essay-cell:nth-child(-n+4) {
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
 }
-
 .essay-card .essay-text {
     font-size: 13px;
     line-height: 2;
@@ -301,7 +300,6 @@ a {
     font-size: 14px;
     letter-spacing: 2px;
 }
-
 .essay-blank {
     padding: 0;
     display: block;
@@ -327,7 +325,7 @@ a {
 }
 
 /* ============================================================
-   杂记区（左文右卡）
+   杂记区（首页）
    ============================================================ */
 .note-section {
     width: calc(100% + 120px);
@@ -417,26 +415,19 @@ a {
 }
 
 /* ============================================================
-   随笔页（3 列卡片，版心 1440px，左右 30px 间距）
+   随笔页面（3 列卡片，日期到秒）
    ============================================================ */
 .suibi-page {
-    width: calc(100% + 120px);
-    margin-left: -60px;
-    margin-right: -60px;
-    padding: 40px 30px;
-    display: grid;
-    grid-template-columns: repeat(3, 440px);
-    gap: 30px;
-    justify-content: center;
+    width: 100%;
     position: relative;
     box-sizing: border-box;
 }
-/* 竖线：从 header 下沿开始，拉到底部 */
+/* 版心竖线 */
 .suibi-page::before,
 .suibi-page::after {
     content: '';
     position: fixed;
-    top: var(--header-height, 100px);   /* 默认 100px，JS 会覆盖 */
+    top: var(--header-height, 100px);
     bottom: 0;
     width: 1px;
     background: rgba(153, 153, 153, 0.5);
@@ -446,7 +437,13 @@ a {
 .suibi-page::before { left: calc(50% - 720px); }
 .suibi-page::after  { right: calc(50% - 720px); }
 
-/* 单张卡片 */
+.suibi-list {
+    padding: 40px 30px;
+    display: grid;
+    grid-template-columns: repeat(3, 440px);
+    gap: 30px;
+    justify-content: center;
+}
 .suibi-card {
     width: 440px;
     background: #141110;
@@ -459,15 +456,13 @@ a {
 .suibi-card:hover {
     background: #1a1614;
 }
-
-/* 卡片上部分：日期 */
 .suibi-card-head {
-    height: 40px;
+    height: 50px;
     padding: 0 20px;
     display: flex;
     align-items: center;
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
-    font-size: 12px;
+    font-size: 13px;
     color: #999999;
     letter-spacing: 0.5px;
 }
@@ -475,18 +470,14 @@ a {
     font-size: 13px;
     color: #999999;
 }
-
-/* 卡片下部分：内容（高度自适应） */
 .suibi-card-body {
     padding: 20px;
-    font-size: 15px;
+    font-size: 13px;
     line-height: 2;
     color: #ffffff;
     word-wrap: break-word;
     overflow-wrap: break-word;
 }
-
-/* 空数据提示 */
 .suibi-empty {
     grid-column: 1 / -1;
     text-align: center;
@@ -495,44 +486,28 @@ a {
     font-size: 13px;
 }
 
-/* 窄屏响应式 */
-@media (max-width: 1500px) {
-    .suibi-page {
-        width: calc(100% + 80px);
-        margin-left: -40px;
-        margin-right: -40px;
-        grid-template-columns: repeat(3, 1fr);
-        padding: 40px 30px;
-    }
-    .suibi-page::before,
-    .suibi-page::after {
-        display: none;
-    }
-    .suibi-card {
-        width: 100%;
-        max-width: 440px;
-    }
-}
-@media (max-width: 1024px) {
-    .suibi-page {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-@media (max-width: 768px) {
-    .suibi-page {
-        width: calc(100% + 40px);
-        margin-left: -20px;
-        margin-right: -20px;
-        grid-template-columns: 1fr;
-        padding: 30px 20px;
-    }
-    .suibi-card {
-        width: 100%;
-    }
-}
 /* ============================================================
-   杂记页面
+   杂记页面 + 详情页
    ============================================================ */
+.zaji-page {
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+}
+.zaji-page::before,
+.zaji-page::after {
+    content: '';
+    position: fixed;
+    top: var(--header-height, 100px);
+    bottom: 0;
+    width: 1px;
+    background: rgba(153, 153, 153, 0.5);
+    z-index: 1;
+    pointer-events: none;
+}
+.zaji-page::before { left: calc(50% - 720px); }
+.zaji-page::after  { right: calc(50% - 720px); }
+
 .zaji-layout {
     display: grid;
     grid-template-columns: 1fr 180px;
@@ -607,9 +582,7 @@ a {
     border-bottom-color: #ffffff;
 }
 
-/* ============================================================
-   详情
-   ============================================================ */
+/* 详情页 */
 .book-main { width: 100%; padding: 40px 0; }
 .book-main .title {
     font-size: 22px;
@@ -643,33 +616,7 @@ a {
     background: #ffffff;
     color: #0C0A09;
 }
-.zaji-page {
-    width: 100%;
-    position: relative;
-    box-sizing: border-box;
-}
 
-/* 竖线：从 header 下沿开始，贯穿到底部 */
-.zaji-page::before,
-.zaji-page::after {
-    content: '';
-    position: fixed;
-    top: var(--header-height, 100px);
-    bottom: 0;
-    width: 1px;
-    background: rgba(153, 153, 153, 0.5);
-    z-index: 1;
-    pointer-events: none;
-}
-.zaji-page::before { left: calc(50% - 720px); }
-.zaji-page::after  { right: calc(50% - 720px); }
-
-/* 窄屏隐藏 */
-@media (max-width: 1500px) {
-    .zaji-page::before,
-    .zaji-page::after {
-        display: none;
-    }
 /* ============================================================
    闲话页面
    ============================================================ */
@@ -678,8 +625,6 @@ a {
     position: relative;
     box-sizing: border-box;
 }
-
-/* 版心左右竖线：从 header 下沿贯穿到页面底部 */
 .xianhua-page::before,
 .xianhua-page::after {
     content: '';
@@ -694,7 +639,6 @@ a {
 .xianhua-page::before { left: calc(50% - 720px); }
 .xianhua-page::after  { right: calc(50% - 720px); }
 
-/* ===== 个人简介文字 ===== */
 .about-text {
     padding: 40px 0;
 }
@@ -704,16 +648,12 @@ a {
     margin-bottom: 8px;
     color: #ffffff;
 }
-
-/* ===== 分隔线（横向） ===== */
 .about-divider {
     border: none;
     border-top: 1px solid rgba(153, 153, 153, 0.5);
     margin: 40px -60px 32px -60px;
     width: calc(100% + 120px);
 }
-
-/* ===== 友链区域 ===== */
 .about-links {
     padding: 0;
 }
@@ -723,8 +663,6 @@ a {
     margin-bottom: 16px;
     font-weight: 400;
 }
-
-/* ===== 站点信息表格 ===== */
 .site-info {
     display: flex;
     flex-direction: column;
@@ -736,9 +674,7 @@ a {
     align-items: stretch;
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
 }
-.site-info-item:last-child {
-    border-bottom: none;
-}
+.site-info-item:last-child { border-bottom: none; }
 .site-info-label {
     display: flex;
     align-items: center;
@@ -760,25 +696,6 @@ a {
     word-break: break-all;
 }
 
-/* ===== 窄屏隐藏竖线 ===== */
-@media (max-width: 1500px) {
-    .xianhua-page::before,
-    .xianhua-page::after {
-        display: none;
-    }
-    .about-divider {
-        margin-left: -40px;
-        margin-right: -40px;
-        width: calc(100% + 80px);
-    }
-}
-@media (max-width: 768px) {
-    .about-divider {
-        margin-left: -20px;
-        margin-right: -20px;
-        width: calc(100% + 40px);
-    }
-}
 /* ============================================================
    响应式
    ============================================================ */
@@ -803,15 +720,27 @@ a {
     .essay-section::before,
     .essay-section::after,
     .note-section::before,
-    .note-section::after {
+    .note-section::after,
+    .suibi-page::before,
+    .suibi-page::after,
+    .zaji-page::before,
+    .zaji-page::after,
+    .xianhua-page::before,
+    .xianhua-page::after {
         display: none;
+    }
+    .suibi-list {
+        grid-template-columns: repeat(3, 1fr);
+        padding: 40px 30px;
+    }
+    .suibi-card {
+        width: 100%;
+        max-width: 440px;
     }
 }
 @media (max-width: 1024px) {
     .banner-text { font-size: 28px; }
-    .essay-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    .essay-grid { grid-template-columns: repeat(2, 1fr); }
     .essay-cell:nth-child(4n) {
         border-right: 1px solid rgba(153, 153, 153, 0.5);
     }
@@ -836,6 +765,9 @@ a {
         gap: 30px;
     }
     .zaji-sidebar { position: static; order: -1; }
+    .suibi-list {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 @media (max-width: 768px) {
     .header-wrap,
@@ -854,17 +786,13 @@ a {
         margin-right: -20px;
     }
     .note-section { padding: 40px 20px; }
-    .essay-grid {
-        grid-template-columns: 1fr;
-    }
+    .essay-grid { grid-template-columns: 1fr; }
     .essay-cell {
         border-right: none;
         border-bottom: 1px solid rgba(153, 153, 153, 0.5);
         padding: 28px 24px;
     }
-    .essay-cell:last-child {
-        border-bottom: none;
-    }
+    .essay-cell:last-child { border-bottom: none; }
     .about-divider {
         margin-left: -20px;
         margin-right: -20px;
@@ -874,92 +802,10 @@ a {
     .banner-btn { padding: 10px 24px; font-size: 12px; }
     .note-item { grid-template-columns: 80px 1fr; gap: 16px; }
     .note-item .note-thumb { width: 80px; height: 80px; }
-    #suibiList { flex-direction: column; }
+    .suibi-list {
+        grid-template-columns: 1fr;
+        padding: 30px 20px;
+    }
+    .suibi-card { width: 100%; }
     .zaji-layout { grid-template-columns: 1fr; }
-}
-    /* ============================================================
-   闲话页面（临时强制生效版）
-   ============================================================ */
-.xianhua-page {
-    width: 100% !important;
-    position: relative !important;
-    box-sizing: border-box !important;
-}
-
-.xianhua-page::before,
-.xianhua-page::after {
-    content: '' !important;
-    position: fixed !important;
-    top: var(--header-height, 100px) !important;
-    bottom: 0 !important;
-    width: 1px !important;
-    background: rgba(153, 153, 153, 0.5) !important;
-    z-index: 1 !important;
-    pointer-events: none !important;
-    display: block !important;
-}
-.xianhua-page::before { left: calc(50% - 720px) !important; }
-.xianhua-page::after  { right: calc(50% - 720px) !important; }
-
-.about-text {
-    padding: 40px 0 !important;
-}
-.about-text p {
-    font-size: 15px !important;
-    font-weight: 500 !important;
-    margin-bottom: 8px !important;
-    color: #ffffff !important;
-}
-
-.about-divider {
-    border: none !important;
-    border-top: 1px solid rgba(153, 153, 153, 0.5) !important;
-    margin: 40px -60px 32px -60px !important;
-    width: calc(100% + 120px) !important;
-    display: block !important;
-}
-
-.about-links {
-    padding: 0 !important;
-}
-.links-title {
-    font-size: 14px !important;
-    color: #999999 !important;
-    margin-bottom: 16px !important;
-    font-weight: 400 !important;
-}
-
-.site-info {
-    display: flex !important;
-    flex-direction: column !important;
-    border: 1px solid rgba(153, 153, 153, 0.5) !important;
-    background: #0C0A09 !important;
-}
-.site-info-item {
-    display: flex !important;
-    align-items: stretch !important;
-    border-bottom: 1px solid rgba(153, 153, 153, 0.5) !important;
-}
-.site-info-item:last-child {
-    border-bottom: none !important;
-}
-.site-info-label {
-    display: flex !important;
-    align-items: center !important;
-    min-width: 80px !important;
-    padding: 10px 16px !important;
-    color: #999999 !important;
-    font-size: 13px !important;
-    background: #141110 !important;
-    border-right: 1px solid rgba(153, 153, 153, 0.5) !important;
-    flex-shrink: 0 !important;
-}
-.site-info-value {
-    display: flex !important;
-    align-items: center !important;
-    padding: 10px 16px !important;
-    color: #ffffff !important;
-    font-size: 13px !important;
-    flex: 1 !important;
-    word-break: break-all !important;
 }
