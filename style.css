@@ -721,7 +721,37 @@ a {
     flex: 1;
     word-break: break-all;
 }
+/* ============================================================
+   闲话页面（版心左右竖线从 header 下沿拉满）
+   ============================================================ */
+.xianhua-page {
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+}
 
+/* 竖线：从 header 下沿开始，贯穿到底部 */
+.xianhua-page::before,
+.xianhua-page::after {
+    content: '';
+    position: fixed;
+    top: var(--header-height, 100px);
+    bottom: 0;
+    width: 1px;
+    background: rgba(153, 153, 153, 0.5);
+    z-index: 1;
+    pointer-events: none;
+}
+.xianhua-page::before { left: calc(50% - 720px); }
+.xianhua-page::after  { right: calc(50% - 720px); }
+
+/* 窄屏隐藏 */
+@media (max-width: 1500px) {
+    .xianhua-page::before,
+    .xianhua-page::after {
+        display: none;
+    }
+}
 /* ============================================================
    响应式
    ============================================================ */
