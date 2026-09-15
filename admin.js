@@ -145,7 +145,7 @@ async function renderSuibi() {
         html += '<tr>';
         html += '<td>' + (i + 1) + '</td>';
         html += '<td>' + item.content + '</td>';
-        html += '<td>' + item.date + '</td>';
+        html += '<td>' + (item.date || '') + '</td>';
         html += '<td class="actions">';
         html += '<button class="btn" onclick="openSuibiEdit(' + item.id + ')">编辑</button>';
         html += '<button class="btn btn-danger" onclick="deleteSuibi(' + item.id + ')">删除</button>';
@@ -155,22 +155,34 @@ async function renderSuibi() {
     tbody.innerHTML = html;
 }
 
-function openSuibiForm() {
-    document.getElementById('suibiModal').classList.add('show');
-    document.getElementById('suibiModalTitle').textContent = '新增短句';
-    document.getElementById('suibi-edit-id').value = '';
-    document.getElementById('suibi-content').value = '';
-    document.getElementById('suibi-date').value = new Date().toISOString().slice(0, 10).replace(/-/g, '/');
+// 获取当前时间，格式化为 "YYYY-MM-DD HH:MM:SS"
+function getNowDateTime() {
+    var now = new Date();
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+        + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
 }
 
+// 新增随笔：自动填入当前时间
+function openSuibiForm() {
+    document.getElementById('suibiModal').classList.add('show');
+    document.getElementById('suibiModalTitle').textContent = '新增随笔';
+    document.getElementById('suibi-edit-id').value = '';
+    document.getElementById('suibi-content').value = '';
+    // 自动填入当前时间（只读）
+    document.getElementById('suibi-date').value = getNowDateTime();
+}
+
+// 编辑随笔：显示原有时间，不修改
 function openSuibiEdit(id) {
     DB.getById('suibi', id).then(function(item) {
         if (!item) return;
         document.getElementById('suibiModal').classList.add('show');
-        document.getElementById('suibiModalTitle').textContent = '编辑短句';
+        document.getElementById('suibiModalTitle').textContent = '编辑随笔';
         document.getElementById('suibi-edit-id').value = id;
         document.getElementById('suibi-content').value = item.content;
-        document.getElementById('suibi-date').value = item.date;
+        // 显示原有日期（只读，提交时不变）
+        document.getElementById('suibi-date').value = item.date || '';
     });
 }
 
@@ -178,11 +190,21 @@ function closeSuibiForm() {
     document.getElementById('suibiModal').classList.remove('show');
 }
 
+// 保存随笔
 async function saveSuibi() {
     var id = document.getElementById('suibi-edit-id').value;
     var content = document.getElementById('suibi-content').value.trim();
-    var date = document.getElementById('suibi-date').value.trim();
     if (!content) { alert('请输入内容'); return; }
+
+    var date;
+    if (id) {
+        // 编辑：保留原日期
+        date = document.getElementById('suibi-date').value;
+    } else {
+        // 新增：使用当前时间
+        date = getNowDateTime();
+    }
+
     if (id) {
         await DB.update('suibi', id, { content: content, date: date });
     } else {
