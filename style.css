@@ -591,7 +591,13 @@ a {
 }
 
 /* 详情页 */
-.book-main { width: 100%; padding: 40px 0; }
+.book-main {
+    width: 900px;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 40px 0;
+    box-sizing: border-box;
+}
 .book-main .title {
     font-size: 22px;
     font-weight: 700;
