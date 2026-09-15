@@ -203,7 +203,6 @@ a {
     border-color: #d8cec4;
 }
 
-/* Banner 鼠标高亮块 */
 .banner-highlight {
     position: absolute;
     width: 50px;
@@ -212,7 +211,7 @@ a {
     border: 1px solid rgba(255, 255, 255, 0.18);
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.2s ease, left 0.15s ease, top 0.15s ease;
+    transition: opacity 0.2s ease, left 0.35s ease, top 0.35s ease;
     z-index: 1;
     box-sizing: border-box;
 }
