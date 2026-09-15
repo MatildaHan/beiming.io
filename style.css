@@ -4,9 +4,17 @@
     padding: 0;
     box-sizing: border-box;
 }
-
 html {
-    overflow-y: scroll;   /* 始终预留滚动条槽，避免页面切换时 header 偏移 */
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 body {
