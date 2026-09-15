@@ -91,7 +91,17 @@
     }
 
     // ============================================================
-    // 打字机（保留，不消失）
+    // header 高度 → CSS 变量（供竖线定位使用）
+    // ============================================================
+    function updateHeaderHeight() {
+        var header = document.querySelector('.site-header');
+        if (!header) return;
+        var h = header.getBoundingClientRect().height;
+        document.documentElement.style.setProperty('--header-height', h + 'px');
+    }
+
+    // ============================================================
+    // 打字机
     // ============================================================
     var bannerFullText = '写信告诉我，今夜你想要梦什么';
     var bannerTextEl = document.getElementById('bannerText');
@@ -100,7 +110,7 @@
     var typewriterDone = false;
 
     function startTypewriter() {
-        if (typewriterDone) return;
+        if (typewriterDone || !bannerTextEl) return;
         var index = 0;
         bannerTextEl.innerHTML = '<span class="cursor"></span>';
         typewriterTimer = setInterval(function() {
@@ -114,11 +124,12 @@
                 typewriterDone = true;
                 setTimeout(function() {
                     bannerTextEl.innerHTML = bannerFullText;
-                    bannerBtnEl.classList.add('show');
+                    if (bannerBtnEl) bannerBtnEl.classList.add('show');
                 }, 400);
             }
         }, 120);
     }
+
     // ============================================================
     // Banner 鼠标高亮
     // ============================================================
@@ -127,7 +138,7 @@
         var highlight = document.getElementById('bannerHighlight');
         if (!banner || !highlight) return;
 
-        var GRID = 50;
+        var GRID = 50; // 与 .banner background-size 一致
 
         banner.addEventListener('mousemove', function(e) {
             var rect = banner.getBoundingClientRect();
@@ -146,8 +157,9 @@
             highlight.classList.remove('show');
         });
     }
+
     // ============================================================
-    // 随笔卡片生成器（4 列布局）
+    // 随笔卡片生成器（首页 4 列布局用）
     // ============================================================
     function buildEssayCard(data) {
         if (!data) {
@@ -155,9 +167,11 @@
                 '<div class="essay-text essay-empty">...</div>' +
                 '</div>';
         }
+        // 首页卡片只显示日期部分
+        var dateShort = (data.date || '').split(' ')[0];
         return '<div class="essay-cell essay-card">' +
             '<div class="essay-text">' + (data.content || '') + '</div>' +
-            '<div class="essay-date">' + (data.date || '') + '</div>' +
+            '<div class="essay-date">' + dateShort + '</div>' +
             '</div>';
     }
 
@@ -217,54 +231,35 @@
         if (!typewriterDone) startTypewriter();
     }
 
-   // ============================================================
-// 随笔列表（3 列卡片，日期到秒）
-// ============================================================
-async function renderSuibiList() {
-    var list = await DB.getAll('suibi', { orderBy: 'id' });
-    var container = document.getElementById('suibiList');
-    if (!container) return;
+    // ============================================================
+    // 随笔页面（3 列卡片，日期到时分秒）
+    // ============================================================
+    async function renderSuibiList() {
+        var list = await DB.getAll('suibi', { orderBy: 'id' });
+        var container = document.getElementById('suibiList');
+        if (!container) return;
 
-    // 数据倒序（最新在前）
-    var sorted = list.slice().reverse();
+        // 倒序：最新在前
+        var sorted = list.slice().reverse();
 
-    if (sorted.length === 0) {
-        container.innerHTML = '<div class="suibi-empty">暂无随笔</div>';
-        return;
+        if (sorted.length === 0) {
+            container.innerHTML = '<div class="suibi-empty">暂无随笔</div>';
+            return;
+        }
+
+        var html = '';
+        for (var i = 0; i < sorted.length; i++) {
+            var item = sorted[i];
+            html += '<div class="suibi-card">';
+            html += '  <div class="suibi-card-head">';
+            html += '    <span class="suibi-date">' + (item.date || '') + '</span>';
+            html += '  </div>';
+            html += '  <div class="suibi-card-body">' + (item.content || '') + '</div>';
+            html += '</div>';
+        }
+        container.innerHTML = html;
     }
 
-    var html = '';
-    for (var i = 0; i < sorted.length; i++) {
-        var item = sorted[i];
-        // 补齐日期到时分秒
-        var dateStr = formatDateTime(item.date);
-
-        html += '<div class="suibi-card">';
-        html += '  <div class="suibi-card-head">';
-        html += '    <span class="suibi-date">' + dateStr + '</span>';
-        html += '  </div>';
-        html += '  <div class="suibi-card-body">' + (item.content || '') + '</div>';
-        html += '</div>';
-    }
-    container.innerHTML = html;
-}
-
-// 日期格式化：把 "2026/09/15" 补齐为 "2026-09-15 14:00:00"
-function formatDateTime(raw) {
-    if (!raw) return '';
-    // 统一分隔符
-    var s = String(raw).replace(/\//g, '-').trim();
-    // 如果已经包含时间和秒
-    if (/\d{1,2}:\d{2}:\d{2}/.test(s)) {
-        return s;
-    }
-    // 如果只包含到分
-    if (/\d{1,2}:\d{2}/.test(s)) {
-        return s + ':00';
-    }
-    // 只有日期 → 补 00:00:00
-    return s + ' 00:00:00';
-}
     // ============================================================
     // 杂记页面
     // ============================================================
@@ -386,8 +381,11 @@ function formatDateTime(raw) {
     // ============================================================
     // 初始化
     // ============================================================
-        document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        updateHeaderHeight();
         showPage('page-home');
         initBannerHighlight();
     });
+
+    window.addEventListener('resize', updateHeaderHeight);
 })();
