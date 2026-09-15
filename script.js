@@ -292,32 +292,29 @@ function initBannerHighlight() {
 
     // ============================================================
     // 随笔页面（3 列卡片，日期到时分秒）
-    // ============================================================
-    async function renderSuibiList() {
-        var list = await DB.getAll('suibi', { orderBy: 'id' });
-        var container = document.getElementById('suibiList');
-        if (!container) return;
+  async function renderSuibiList() {
+    var list = await DB.getAll('suibi', { orderBy: 'id' });
+    var container = document.getElementById('suibiList');
+    if (!container) return;
 
-        // 倒序：最新在前
-        var sorted = list.slice().reverse();
-
-        if (sorted.length === 0) {
-            container.innerHTML = '<div class="suibi-empty">暂无随笔</div>';
-            return;
-        }
-
-        var html = '';
-        for (var i = 0; i < sorted.length; i++) {
-            var item = sorted[i];
-            html += '<div class="suibi-card">';
-            html += '  <div class="suibi-card-head">';
-            html += '    <span class="suibi-date">' + (item.date || '') + '</span>';
-            html += '  </div>';
-            html += '  <div class="suibi-card-body">' + (item.content || '') + '</div>';
-            html += '</div>';
-        }
-        container.innerHTML = html;
+    // DB.getAll 已倒序（最新在前），直接用
+    if (list.length === 0) {
+        container.innerHTML = '<div class="suibi-empty">暂无随笔</div>';
+        return;
     }
+
+    var html = '';
+    for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        html += '<div class="suibi-card">';
+        html += '  <div class="suibi-card-head">';
+        html += '    <span class="suibi-date">' + (item.date || '') + '</span>';
+        html += '  </div>';
+        html += '  <div class="suibi-card-body">' + (item.content || '') + '</div>';
+        html += '</div>';
+    }
+    container.innerHTML = html;
+}
 
     // ============================================================
     // 杂记页面
