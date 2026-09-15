@@ -414,57 +414,117 @@ a {
 }
 
 /* ============================================================
-   随笔列表（层叠卡片）
+   随笔页（3 列卡片，版心 1440px，左右 30px 间距）
    ============================================================ */
-#suibiList {
-    display: flex;
-    gap: 16px;
-    width: 100%;
-    padding: 40px 0;
-    align-items: flex-start;
+.suibi-page {
+    width: calc(100% + 120px);
+    margin-left: -60px;
+    margin-right: -60px;
+    padding: 40px 30px;
+    display: grid;
+    grid-template-columns: repeat(3, 440px);
+    gap: 30px;
+    justify-content: center;
     position: relative;
+    box-sizing: border-box;
 }
-#suibiList .suibi-col {
-    flex: 1 1 0;
+/* 版心左右竖分割线 */
+.suibi-page::before,
+.suibi-page::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(153, 153, 153, 0.5);
+}
+.suibi-page::before { left: calc(50% - 720px); }
+.suibi-page::after  { right: calc(50% - 720px); }
+
+/* 单张卡片 */
+.suibi-card {
+    width: 440px;
+    background: #141110;
+    border: 1px solid rgba(153, 153, 153, 0.5);
     display: flex;
     flex-direction: column;
-    min-width: 0;
+    box-sizing: border-box;
+    transition: background 0.25s ease;
 }
-#suibiList .article-item {
-    background: #141110;
-    padding: 20px 24px;
-    margin-top: -14px;
-    position: relative;
-    box-shadow: 0 -3px 14px rgba(0, 0, 0, 0.4);
-    transition: 0.3s ease;
-    border: 1px solid rgba(153, 153, 153, 0.5);
+.suibi-card:hover {
+    background: #1a1614;
 }
-#suibiList .suibi-col .article-item:first-child {
-    margin-top: 0;
-}
-#suibiList .article-item:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 -6px 22px rgba(0, 0, 0, 0.6);
-    z-index: 9999 !important;
-}
-#suibiList .article-date {
-    font-size: 12px;
+
+/* 卡片上部分：日期 */
+.suibi-card-head {
+    height: 50px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
+    font-size: 13px;
     color: #999999;
     letter-spacing: 0.5px;
-    margin-left: -24px;
-    margin-right: -24px;
-    padding: 0 24px 10px;
-    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
-    margin-bottom: 14px;
 }
-#suibiList .article-text {
-    font-size: 14px;
+.suibi-card-head .suibi-date {
+    font-size: 13px;
+    color: #999999;
+}
+
+/* 卡片下部分：内容（高度自适应） */
+.suibi-card-body {
+    padding: 20px;
+    font-size: 13px;
     line-height: 2;
     color: #ffffff;
     word-wrap: break-word;
     overflow-wrap: break-word;
 }
 
+/* 空数据提示 */
+.suibi-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: #999999;
+    padding: 60px 0;
+    font-size: 13px;
+}
+
+/* 窄屏响应式 */
+@media (max-width: 1500px) {
+    .suibi-page {
+        width: calc(100% + 80px);
+        margin-left: -40px;
+        margin-right: -40px;
+        grid-template-columns: repeat(3, 1fr);
+        padding: 40px 30px;
+    }
+    .suibi-page::before,
+    .suibi-page::after {
+        display: none;
+    }
+    .suibi-card {
+        width: 100%;
+        max-width: 440px;
+    }
+}
+@media (max-width: 1024px) {
+    .suibi-page {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (max-width: 768px) {
+    .suibi-page {
+        width: calc(100% + 40px);
+        margin-left: -20px;
+        margin-right: -20px;
+        grid-template-columns: 1fr;
+        padding: 30px 20px;
+    }
+    .suibi-card {
+        width: 100%;
+    }
+}
 /* ============================================================
    杂记页面
    ============================================================ */
