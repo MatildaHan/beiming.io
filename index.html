@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>须臾之间</title>
+    <link rel="icon" href="data:,">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -24,93 +25,96 @@
     </header>
 
     <main class="container" id="app">
-      <!-- ===== 序章 ===== -->
-<section id="page-home" class="page-section active">
-    <!-- Banner -->
-    <div class="banner" id="banner">
-        <div class="banner-highlight" id="bannerHighlight"></div>
-        <div class="banner-text" id="bannerText"></div>
-        <button class="banner-btn" id="bannerBtn">去告诉她 <span class="btn-arrow">›</span></button>
-    </div>
-
-    <!-- Banner 与随笔之间的间隔条 -->
-    <div class="gap-divider"></div>
-
-    <!-- 随笔区 -->
-    <div class="essay-section">
-        <div class="essay-grid" id="homeSuibi"></div>
-    </div>
-
-    <!-- 随笔与杂记之间的间隔条 -->
-    <div class="gap-divider"></div>
-
-    <!-- 杂记区 -->
-    <div class="note-section">
-        <div class="note-left">
-            <h2 class="note-heading">杂记</h2>
-            <div class="note-desc" id="noteDesc">
-                没有宏大的主题<br>
-                也没有完整的叙事<br>
-                不足以称文章<br>
-                只用来证明<br>
-                我曾在此间停留
+        <!-- ===== 序章 ===== -->
+        <section id="page-home" class="page-section active">
+            <!-- Banner -->
+            <div class="banner" id="banner">
+                <div class="banner-highlight" id="bannerHighlight"></div>
+                <div class="banner-text" id="bannerText"></div>
+                <button class="banner-btn" id="bannerBtn">去告诉她 <span class="btn-arrow">›</span></button>
             </div>
-        </div>
-        <div class="note-right" id="homeZaji"></div>
-    </div>
-</section>
-       <!-- ===== 随笔 ===== -->
-<section id="page-suibi" class="page-section">
-    <div class="suibi-page" id="suibiList"></div>
-</section>
 
- <!-- ===== 杂记 ===== -->
-<section id="page-zaji" class="page-section">
-    <div class="zaji-page">
-        <div class="zaji-layout">
-            <div class="zaji-main">
-                <div class="zaji-article-list" id="zajiArticleList"></div>
+            <!-- Banner 与随笔之间的间隔条 -->
+            <div class="gap-divider"></div>
+
+            <!-- 随笔区 -->
+            <div class="essay-section">
+                <div class="essay-grid" id="homeSuibi"></div>
             </div>
-            <aside class="zaji-sidebar">
-                <h3 class="zaji-sidebar-title">系列</h3>
-                <div class="zaji-series-list" id="zajiSeriesList"></div>
-            </aside>
-        </div>
-    </div>
-</section>
 
-<!-- ===== 杂记 详情 ===== -->
-<section id="zaji-detail" class="page-section">
-    <div class="zaji-page">
-        <div class="book-main">
-            <h2 class="title" id="zajiDetailTitle"></h2>
-            <div class="date" id="zajiDetailDate"></div>
-            <div class="book-content" id="zajiDetailContent"></div>
-            <button class="back-btn" data-back="page-zaji">返回</button>
-        </div>
-    </div>
-</section>
+            <!-- 随笔与杂记之间的间隔条 -->
+            <div class="gap-divider"></div>
 
-       <!-- ===== 闲话 ===== -->
-<section id="page-xianhua" class="page-section">
-    <div class="xianhua-page">
-        <div class="about-text" id="xianhuaContent"></div>
-        <hr class="about-divider">
-        <div class="about-links">
-            <p class="links-title">若能得您垂青，还望链接小站：</p>
-            <div class="site-info">
-                <div class="site-info-item">
-                    <span class="site-info-label">名称</span>
-                    <span class="site-info-value">须臾之间</span>
+            <!-- 杂记区 -->
+            <div class="note-section">
+                <div class="note-left">
+                    <h2 class="note-heading">杂记</h2>
+                    <div class="note-desc" id="noteDesc">
+                        没有宏大的主题<br>
+                        也没有完整的叙事<br>
+                        不足以称文章<br>
+                        只用来证明<br>
+                        我曾在此间停留
+                    </div>
                 </div>
-                <div class="site-info-item">
-                    <span class="site-info-label">描述</span>
-                    <span class="site-info-value">寄蜉蝣于天地，渺沧海之一粟。</span>
+                <div class="note-right" id="homeZaji"></div>
+            </div>
+        </section>
+
+        <!-- ===== 随笔 ===== -->
+        <section id="page-suibi" class="page-section">
+            <div class="suibi-page">
+                <div class="suibi-list" id="suibiList"></div>
+            </div>
+        </section>
+
+        <!-- ===== 杂记 ===== -->
+        <section id="page-zaji" class="page-section">
+            <div class="zaji-page">
+                <div class="zaji-layout">
+                    <div class="zaji-main">
+                        <div class="zaji-article-list" id="zajiArticleList"></div>
+                    </div>
+                    <aside class="zaji-sidebar">
+                        <h3 class="zaji-sidebar-title">系列</h3>
+                        <div class="zaji-series-list" id="zajiSeriesList"></div>
+                    </aside>
                 </div>
             </div>
-        </div>
-    </div> 
-</section>
+        </section>
+
+        <!-- ===== 杂记 详情 ===== -->
+        <section id="zaji-detail" class="page-section">
+            <div class="zaji-page">
+                <div class="book-main">
+                    <h2 class="title" id="zajiDetailTitle"></h2>
+                    <div class="date" id="zajiDetailDate"></div>
+                    <div class="book-content" id="zajiDetailContent"></div>
+                    <button class="back-btn" data-back="page-zaji">返回</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 闲话 ===== -->
+        <section id="page-xianhua" class="page-section">
+            <div class="xianhua-page">
+                <div class="about-text" id="xianhuaContent"></div>
+                <hr class="about-divider">
+                <div class="about-links">
+                    <p class="links-title">若能得您垂青，还望链接小站：</p>
+                    <div class="site-info">
+                        <div class="site-info-item">
+                            <span class="site-info-label">名称</span>
+                            <span class="site-info-value">须臾之间</span>
+                        </div>
+                        <div class="site-info-item">
+                            <span class="site-info-label">描述</span>
+                            <span class="site-info-value">寄蜉蝣于天地，渺沧海之一粟。</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <script src="supabase.js"></script>
