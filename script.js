@@ -130,34 +130,93 @@
         }, 120);
     }
 
-    // ============================================================
-    // Banner 鼠标高亮
-    // ============================================================
-    function initBannerHighlight() {
-        var banner = document.getElementById('banner');
-        var highlight = document.getElementById('bannerHighlight');
-        if (!banner || !highlight) return;
+  // ============================================================
+// Banner 高亮：自动播放 + 鼠标跟随
+// ============================================================
+function initBannerHighlight() {
+    var banner = document.getElementById('banner');
+    var auto = document.getElementById('bannerAuto');
+    var mouse = document.getElementById('bannerHighlight');
+    if (!banner || !auto || !mouse) return;
 
-        var GRID = 50; // 与 .banner background-size 一致
+    var GRID = 50;             // 与 .banner background-size 一致
+    var STEP_MS = 350;         // 每格停留时间（越大越慢）
+    var COLS = 0;              // 列数
+    var ROWS = 0;              // 行数
 
-        banner.addEventListener('mousemove', function(e) {
-            var rect = banner.getBoundingClientRect();
-            var x = e.clientX - rect.left;
-            var y = e.clientY - rect.top;
+    var autoIndex = 0;
+    var autoTimer = null;
 
-            var col = Math.floor(x / GRID);
-            var row = Math.floor(y / GRID);
-
-            highlight.style.left = (col * GRID) + 'px';
-            highlight.style.top  = (row * GRID) + 'px';
-            highlight.classList.add('show');
-        });
-
-        banner.addEventListener('mouseleave', function() {
-            highlight.classList.remove('show');
-        });
+    // 计算格子行列数
+    function calcGrid() {
+        var rect = banner.getBoundingClientRect();
+        COLS = Math.floor(rect.width / GRID);
+        ROWS = Math.floor(rect.height / GRID);
     }
 
+    // 自动播放：按顺序移动
+    function autoNext() {
+        if (COLS === 0 || ROWS === 0) return;
+        var total = COLS * ROWS;
+        var idx = autoIndex % total;
+
+        var col = idx % COLS;
+        var row = Math.floor(idx / COLS);
+
+        auto.style.left = (col * GRID) + 'px';
+        auto.style.top  = (row * GRID) + 'px';
+        auto.classList.add('show');
+
+        autoIndex++;
+        if (autoIndex >= total) autoIndex = 0;  // 循环
+    }
+
+    function startAuto() {
+        if (autoTimer) return;
+        // 先立即执行一次，避免等 350ms
+        autoNext();
+        autoTimer = setInterval(autoNext, STEP_MS);
+    }
+
+    function stopAuto() {
+        if (autoTimer) {
+            clearInterval(autoTimer);
+            autoTimer = null;
+        }
+        auto.classList.remove('show');
+    }
+
+    // 鼠标跟随
+    banner.addEventListener('mousemove', function(e) {
+        var rect = banner.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var y = e.clientY - rect.top;
+        var col = Math.floor(x / GRID);
+        var row = Math.floor(y / GRID);
+
+        mouse.style.left = (col * GRID) + 'px';
+        mouse.style.top  = (row * GRID) + 'px';
+        mouse.classList.add('show');
+
+        // 鼠标进入时暂停自动播放
+        stopAuto();
+    });
+
+    banner.addEventListener('mouseleave', function() {
+        mouse.classList.remove('show');
+        // 鼠标离开后恢复自动播放
+        startAuto();
+    });
+
+    // 初始化
+    calcGrid();
+    startAuto();
+
+    // 窗口 resize 时重新计算
+    window.addEventListener('resize', function() {
+        calcGrid();
+    });
+}
     // ============================================================
     // 随笔卡片生成器（首页 4 列布局用）
     // ============================================================
