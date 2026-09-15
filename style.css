@@ -428,15 +428,17 @@ a {
     position: relative;
     box-sizing: border-box;
 }
-/* 版心左右竖分割线 */
+/* 竖线：从 header 下沿开始，拉到底部 */
 .suibi-page::before,
 .suibi-page::after {
     content: '';
-    position: absolute;
-    top: 0;
+    position: fixed;
+    top: var(--header-height, 100px);   /* 默认 100px，JS 会覆盖 */
     bottom: 0;
     width: 1px;
     background: rgba(153, 153, 153, 0.5);
+    z-index: 1;
+    pointer-events: none;
 }
 .suibi-page::before { left: calc(50% - 720px); }
 .suibi-page::after  { right: calc(50% - 720px); }
