@@ -640,7 +640,33 @@ a {
     background: #ffffff;
     color: #0C0A09;
 }
+.zaji-page {
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+}
 
+/* 竖线：从 header 下沿开始，贯穿到底部 */
+.zaji-page::before,
+.zaji-page::after {
+    content: '';
+    position: fixed;
+    top: var(--header-height, 100px);
+    bottom: 0;
+    width: 1px;
+    background: rgba(153, 153, 153, 0.5);
+    z-index: 1;
+    pointer-events: none;
+}
+.zaji-page::before { left: calc(50% - 720px); }
+.zaji-page::after  { right: calc(50% - 720px); }
+
+/* 窄屏隐藏 */
+@media (max-width: 1500px) {
+    .zaji-page::before,
+    .zaji-page::after {
+        display: none;
+    }
 /* ============================================================
    闲话
    ============================================================ */
