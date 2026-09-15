@@ -124,7 +124,7 @@ a {
 .banner {
     width: 100vw;
     margin-left: calc(50% - 50vw);
-    height: 520px;
+    height: 550px;
     display: flex;
     flex-direction: column;
     justify-content: center;
