@@ -877,3 +877,89 @@ a {
     #suibiList { flex-direction: column; }
     .zaji-layout { grid-template-columns: 1fr; }
 }
+    /* ============================================================
+   闲话页面（临时强制生效版）
+   ============================================================ */
+.xianhua-page {
+    width: 100% !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+}
+
+.xianhua-page::before,
+.xianhua-page::after {
+    content: '' !important;
+    position: fixed !important;
+    top: var(--header-height, 100px) !important;
+    bottom: 0 !important;
+    width: 1px !important;
+    background: rgba(153, 153, 153, 0.5) !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+    display: block !important;
+}
+.xianhua-page::before { left: calc(50% - 720px) !important; }
+.xianhua-page::after  { right: calc(50% - 720px) !important; }
+
+.about-text {
+    padding: 40px 0 !important;
+}
+.about-text p {
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    margin-bottom: 8px !important;
+    color: #ffffff !important;
+}
+
+.about-divider {
+    border: none !important;
+    border-top: 1px solid rgba(153, 153, 153, 0.5) !important;
+    margin: 40px -60px 32px -60px !important;
+    width: calc(100% + 120px) !important;
+    display: block !important;
+}
+
+.about-links {
+    padding: 0 !important;
+}
+.links-title {
+    font-size: 14px !important;
+    color: #999999 !important;
+    margin-bottom: 16px !important;
+    font-weight: 400 !important;
+}
+
+.site-info {
+    display: flex !important;
+    flex-direction: column !important;
+    border: 1px solid rgba(153, 153, 153, 0.5) !important;
+    background: #0C0A09 !important;
+}
+.site-info-item {
+    display: flex !important;
+    align-items: stretch !important;
+    border-bottom: 1px solid rgba(153, 153, 153, 0.5) !important;
+}
+.site-info-item:last-child {
+    border-bottom: none !important;
+}
+.site-info-label {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 80px !important;
+    padding: 10px 16px !important;
+    color: #999999 !important;
+    font-size: 13px !important;
+    background: #141110 !important;
+    border-right: 1px solid rgba(153, 153, 153, 0.5) !important;
+    flex-shrink: 0 !important;
+}
+.site-info-value {
+    display: flex !important;
+    align-items: center !important;
+    padding: 10px 16px !important;
+    color: #ffffff !important;
+    font-size: 13px !important;
+    flex: 1 !important;
+    word-break: break-all !important;
+}
