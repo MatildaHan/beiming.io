@@ -142,7 +142,8 @@
     // ============================================================
     // Banner 碎片拼合
     // ============================================================
-    var bannerCurrentStep = 0;
+    // ★ 初始阶段为 1（不是 0）
+    var bannerCurrentStep = 1;
 
     var BANNER_CONFIG = {
         imageUrl: 'images/wallhaven-qro5vq.jpg',
@@ -155,7 +156,7 @@
         randomStage1Count: 4,
         randomStage2Count: 6,
 
-        // 阶段 3~6 每批新增的碎片数量（累积显示）
+        // 阶段 3~6 每批新增的碎片数量
         fixedStageAdd: {
             3: 6,
             4: 6,
@@ -163,13 +164,13 @@
             6: 6
         },
 
-        // 随机碎片的位移/旋转/模糊范围
+        // 随机碎片的位移/旋转/模糊/放大
         random: {
             offset: 260,
             rotate: 25,
             blurMin: 6,
             blurMax: 14,
-            baseScaleMin: 1.1,   // ★ 基准放大 20%（1.2 上下浮动）
+            baseScaleMin: 1.1,
             baseScaleMax: 1.4
         },
 
@@ -183,10 +184,11 @@
     };
 
     var bannerState = {
+        ready: false,                // 图片/碎片是否准备好
         randomFragments: [],
         fixedFragments: {},
         fixedRevealed: {},
-        shuffledIds: null,       // 一次性乱序的 24 个 id
+        shuffledIds: null,
         wheelLock: false,
         typewriterDone: false,
         rainStarted: false,
@@ -235,7 +237,6 @@
             el.style.setProperty('--dx', (Math.random() * rg.offset * 2 - rg.offset).toFixed(1) + 'px');
             el.style.setProperty('--dy', (Math.random() * rg.offset * 2 - rg.offset).toFixed(1) + 'px');
             el.style.setProperty('--rot', (Math.random() * rg.rotate * 2 - rg.rotate).toFixed(1) + 'deg');
-            // ★ 基准放大 20%，在 baseScaleMin~baseScaleMax 之间
             var s = rg.baseScaleMin + Math.random() * (rg.baseScaleMax - rg.baseScaleMin);
             el.style.setProperty('--scale', s.toFixed(2));
             el.style.setProperty('--blur',
@@ -273,7 +274,7 @@
                 }
             }
 
-            // 生成一次性乱序的 id 数组
+            // 一次性乱序的 24 个 id
             var ids = [];
             for (var k = 1; k <= TOTAL; k++) ids.push(k);
             for (var m = ids.length - 1; m > 0; m--) {
@@ -283,7 +284,7 @@
             bannerState.shuffledIds = ids;
         }
 
-        // 随机碎片（阶段 1、2）
+        // 随机碎片
         function spawnRandomFragments(count) {
             var vw = window.innerWidth;
             var vh = window.innerHeight;
@@ -330,8 +331,10 @@
 
         function hideAllFixed() {
             for (var id = 1; id <= TOTAL; id++) {
+                var el = bannerState.fixedFragments[id];
+                if (!el) continue;
                 bannerState.fixedRevealed[id] = false;
-                bannerState.fixedFragments[id].classList.remove('show');
+                el.classList.remove('show');
             }
         }
 
@@ -360,12 +363,13 @@
         }
 
         // ============================================================
-        // 核心：从阶段 0 完整重放到 target 阶段（幂等）
+        // 核心：从阶段 0 重放到 target（幂等）
+        // 阶段从 1 开始，最低 1
         // ============================================================
         function applyStep(target) {
             bannerCurrentStep = target;
 
-            // 1. 先清空所有状态
+            // 1. 清空所有状态
             stopRain();
             fullLayer.classList.remove('zoom');
             fullLayer.classList.remove('show');
@@ -373,7 +377,7 @@
             clearRandomFragmentsInstant();
             hideAllFixed();
 
-            // 2. 重置 header / 锁屏 / 文字
+            // 2. header / 锁屏 / 文字
             if (target < 7) {
                 if (siteHeader) siteHeader.classList.remove('visible');
                 document.body.classList.add('banner-locked');
@@ -384,22 +388,18 @@
                 bannerState.typewriterDone = false;
                 var txt = document.getElementById('bannerText');
                 if (txt) txt.innerHTML = '';
-                // 启用点击层
                 if (clickLayer) clickLayer.classList.remove('disabled');
             } else {
-                // 阶段 7：点击层禁用
                 if (clickLayer) clickLayer.classList.add('disabled');
             }
 
-            if (target === 0) return;
-
-            // 阶段 1：随机 4 块（倾斜/模糊/放大）
+            // ★ 阶段 1（最低）
             if (target === 1) {
                 spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
                 return;
             }
 
-            // 阶段 2：随机 4 + 6 块
+            // 阶段 2
             if (target === 2) {
                 spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
                 spawnRandomFragments(BANNER_CONFIG.randomStage2Count);
@@ -411,18 +411,12 @@
                 var ids = bannerState.shuffledIds;
                 var add = BANNER_CONFIG.fixedStageAdd;
 
-                // 计算本阶段应显示的总数量
-                // 3: 6
-                // 4: 12
-                // 5: 18
-                // 6: 24
                 var totalCount = 0;
                 for (var s = 3; s <= target; s++) {
                     totalCount += add[s] || 0;
                 }
                 if (totalCount > TOTAL) totalCount = TOTAL;
 
-                // 从乱序 ids 中取前 totalCount 个
                 for (var idx = 0; idx < totalCount; idx++) {
                     var id2 = ids[idx];
                     bannerState.fixedRevealed[id2] = true;
@@ -435,17 +429,16 @@
                 setTimeout(function() {
                     fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                     fixedLayer.style.opacity = '0';
-                    fullLayer.classList.add('show');   // .show = scale(0.9)
+                    fullLayer.classList.add('show');
                 }, 700);
             }
 
-            // 阶段 7：放大铺满 + 下雨 + 打字机 + 显示 header
+            // 阶段 7：放大铺满 + 下雨 + 打字机 + header
             if (target === 7) {
-                // 先确保显示完整图
                 fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                 fixedLayer.style.opacity = '0';
                 fullLayer.classList.add('show');
-                fullLayer.classList.add('zoom');       // .zoom = scale(1)
+                fullLayer.classList.add('zoom');
 
                 rainCanvas.classList.add('show');
                 startRain();
@@ -467,6 +460,7 @@
         // 向下推进（点击 / 滚轮 ↓）
         // ============================================================
         function nextStep() {
+            if (!bannerState.ready) return;
             if (bannerState.wheelLock) return;
             if (bannerCurrentStep >= 7) return;
 
@@ -478,10 +472,12 @@
 
         // ============================================================
         // 向上回退（仅滚轮 ↑）
+        // 最低回到阶段 1
         // ============================================================
         function prevStep() {
+            if (!bannerState.ready) return;
             if (bannerState.wheelLock) return;
-            if (bannerCurrentStep <= 0) return;
+            if (bannerCurrentStep <= 1) return;   // ★ 最低 1
 
             bannerState.wheelLock = true;
             bannerCurrentStep--;
@@ -497,7 +493,6 @@
             if (!homeActive) return;
 
             if (bannerCurrentStep >= 7) {
-                // 阶段 7 后：页面正常滚动，但页面在顶部 + 向上滚 → 回退
                 if (e.deltaY < 0 && window.scrollY <= 5) {
                     e.preventDefault();
                     prevStep();
@@ -508,18 +503,17 @@
             e.preventDefault();
 
             if (e.deltaY > 0) {
-                nextStep();      // 向下滚 → 推进
+                nextStep();
             } else if (e.deltaY < 0) {
-                prevStep();      // ★ 向上滚 → 回退
+                prevStep();
             }
         }, { passive: false });
 
         // ============================================================
-        // 点击监听（只在 banner 内）
+        // 点击监听
         // ============================================================
         if (clickLayer) {
             clickLayer.addEventListener('click', function() {
-                // 阶段 7 后不再响应点击
                 if (bannerCurrentStep >= 7) return;
                 nextStep();
             });
@@ -606,8 +600,9 @@
             BANNER_CONFIG.imgH = img.naturalHeight;
 
             createFixedFragments();
+            bannerState.ready = true;
 
-            // 移动端：跳过动画，直接显示完整 Banner
+            // 移动端：直接显示完整 Banner
             if (window.innerWidth <= 768) {
                 fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                 fullLayer.classList.add('show');
@@ -628,17 +623,18 @@
                 return;
             }
 
-            // 桌面端：锁屏，等用户操作
+            // 桌面端：锁屏 + 显示阶段 1
             document.body.classList.add('banner-locked');
-
-            // ★ 无自动播放，一切等用户手动
+            applyStep(1);   // ★ 直接进入阶段 1
         };
         img.onerror = function() {
             console.error('Banner 图片加载失败：', BANNER_CONFIG.imageUrl);
             BANNER_CONFIG.imgW = 1920;
             BANNER_CONFIG.imgH = 1080;
             createFixedFragments();
+            bannerState.ready = true;
             document.body.classList.add('banner-locked');
+            applyStep(1);
         };
         img.src = BANNER_CONFIG.imageUrl;
     }
