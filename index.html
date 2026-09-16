@@ -30,8 +30,16 @@
         <!-- ===== 序章（Banner 首屏） ===== -->
         <section id="page-home" class="page-section active">
             <section class="banner" id="banner">
+                <!-- 碎片层（阶段 0~5 用） -->
+                <div class="banner-fragments" id="bannerFragments"></div>
+
+                <!-- 完整图（阶段 6 用） -->
                 <div class="banner-full" id="bannerFull"></div>
 
+                <!-- 下雨 canvas -->
+                <canvas class="banner-rain" id="bannerRain"></canvas>
+
+                <!-- 文字层 -->
                 <div class="banner-overlay" id="bannerOverlay">
                     <div class="banner-text" id="bannerText"></div>
                     <button class="banner-btn" id="bannerBtn">去告诉她 <span class="btn-arrow">›</span></button>
