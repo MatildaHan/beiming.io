@@ -45,6 +45,7 @@
             }
         } else {
             document.body.classList.remove('banner-mode');
+            document.body.classList.remove('scrolled');
             if (siteHeader) siteHeader.classList.add('visible');
         }
 
@@ -122,13 +123,32 @@
     }
 
     // ============================================================
+    // 首页滚动出 Banner 后 header 加实心背景
+    // ============================================================
+    function initHeaderScroll() {
+        var banner = document.getElementById('banner');
+        if (!banner) return;
+
+        window.addEventListener('scroll', function() {
+            if (!document.body.classList.contains('banner-mode')) return;
+
+            var bannerBottom = banner.offsetTop + banner.offsetHeight;
+            if (window.scrollY >= bannerBottom - 50) {
+                document.body.classList.add('scrolled');
+            } else {
+                document.body.classList.remove('scrolled');
+            }
+        }, { passive: true });
+    }
+
+    // ============================================================
     // Banner 碎片拼合
     // ============================================================
     var bannerCurrentStep = 0;
 
     var BANNER_CONFIG = {
         imageUrl: 'images/wallhaven-qro5vq.jpg',
-        imgW: 1920,        // 默认值，加载后被覆盖
+        imgW: 1920,
         imgH: 1080,
         cols: 6,
         rows: 4,
@@ -150,9 +170,9 @@
         rainWidth: 2.2,
         rainLengthMin: 18,
         rainLengthMax: 34,
-        autoStartDelay: 2000,
-        autoInterval: 1500,
-        autoResumeDelay: 2000,
+
+        autoStartDelay: 2000,     // 打开后 2 秒自动开始
+        autoInterval: 1500,       // 每 1.5 秒推进一阶段
         autoEndStep: 7
     };
 
@@ -163,9 +183,8 @@
         wheelLock: false,
         autoPlayTimer: null,
         autoStartTimer: null,
-        autoResumeTimer: null,
         autoPlaying: false,
-        autoFinished: false,
+        autoFinished: false,      // 一旦用户滚轮 → true，不再自动
         typewriterDone: false,
         rainStarted: false,
         rainRAF: null,
@@ -188,9 +207,7 @@
         var ROWS = BANNER_CONFIG.rows;
         var TOTAL = COLS * ROWS;
 
-        // ============================================================
-        // ★ 计算图片按 cover 规则在 banner 中的实际绘制矩形
-        // ============================================================
+        // 计算图片按 cover 规则在 banner 中的实际绘制矩形
         function computeCoverRect() {
             var vw = window.innerWidth;
             var vh = window.innerHeight;
@@ -388,6 +405,9 @@
                 if (o0) o0.classList.remove('show');
                 var h0 = document.getElementById('bannerScrollHint');
                 if (h0) h0.classList.remove('hide');
+                bannerState.typewriterDone = false;
+                var txt0 = document.getElementById('bannerText');
+                if (txt0) txt0.innerHTML = '';
                 return;
             }
 
@@ -487,6 +507,9 @@
             bannerCurrentStep = target;
         }
 
+        // ============================================================
+        // 自动播放
+        // ============================================================
         function startAutoPlay() {
             if (bannerState.autoPlaying || bannerState.autoFinished) return;
             if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
@@ -496,6 +519,10 @@
             bannerState.autoPlaying = true;
 
             bannerState.autoPlayTimer = setInterval(function() {
+                if (bannerState.autoFinished) {
+                    stopAutoPlay();
+                    return;
+                }
                 if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
                     stopAutoPlay();
                     bannerState.autoFinished = true;
@@ -514,32 +541,17 @@
             }
         }
 
-        function scheduleAutoResume() {
-            if (bannerState.autoResumeTimer) {
-                clearTimeout(bannerState.autoResumeTimer);
-                bannerState.autoResumeTimer = null;
-            }
-            if (bannerState.autoFinished) return;
-            if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
-                bannerState.autoFinished = true;
-                return;
-            }
-            bannerState.autoResumeTimer = setTimeout(function() {
-                bannerState.autoResumeTimer = null;
-                startAutoPlay();
-            }, BANNER_CONFIG.autoResumeDelay);
-        }
-
+        // ============================================================
+        // 用户滚轮
+        // ============================================================
         function handleUserScroll(direction) {
+            // 彻底停止自动（不再恢复）
             stopAutoPlay();
-            if (bannerState.autoResumeTimer) {
-                clearTimeout(bannerState.autoResumeTimer);
-                bannerState.autoResumeTimer = null;
-            }
             if (bannerState.autoStartTimer) {
                 clearTimeout(bannerState.autoStartTimer);
                 bannerState.autoStartTimer = null;
             }
+            bannerState.autoFinished = true;
 
             if (bannerState.wheelLock) return;
 
@@ -548,30 +560,36 @@
                 bannerState.wheelLock = true;
                 bannerCurrentStep++;
                 applyStep(bannerCurrentStep);
-                setTimeout(function() { bannerState.wheelLock = false; }, 700);
+                setTimeout(function() { bannerState.wheelLock = false; }, 800);
             } else if (direction < 0) {
                 if (bannerCurrentStep <= 0) return;
                 bannerState.wheelLock = true;
                 bannerCurrentStep--;
                 replayToStep(bannerCurrentStep);
-                setTimeout(function() { bannerState.wheelLock = false; }, 700);
+                setTimeout(function() { bannerState.wheelLock = false; }, 800);
             }
-
-            if (bannerCurrentStep < BANNER_CONFIG.autoEndStep) {
-                bannerState.autoFinished = false;
-            }
-
-            scheduleAutoResume();
         }
 
+        // 滚轮监听
         window.addEventListener('wheel', function(e) {
             var homeActive = document.getElementById('page-home').classList.contains('active');
             if (!homeActive) return;
-            if (bannerCurrentStep >= 7) return;
+
+            // 阶段 7 后：页面正常滚动；但页面在顶部 + 向上滚 → Banner 回退
+            if (bannerCurrentStep >= 7) {
+                if (e.deltaY < 0 && window.scrollY <= 5) {
+                    e.preventDefault();
+                    handleUserScroll(-1);
+                }
+                return;
+            }
+
+            // 阶段 0~6：拦截滚轮，控制 Banner
             e.preventDefault();
             handleUserScroll(e.deltaY);
         }, { passive: false });
 
+        // 触摸
         var touchStartY = 0;
         window.addEventListener('touchstart', function(e) {
             touchStartY = e.touches[0].clientY;
@@ -579,13 +597,20 @@
         window.addEventListener('touchend', function(e) {
             var homeActive = document.getElementById('page-home').classList.contains('active');
             if (!homeActive) return;
-            if (bannerCurrentStep >= 7) return;
+            if (bannerCurrentStep >= 7) {
+                if (window.scrollY <= 5 && (touchStartY - e.changedTouches[0].clientY) < -50) {
+                    handleUserScroll(-1);
+                }
+                return;
+            }
             var dy = touchStartY - e.changedTouches[0].clientY;
             if (dy > 50) handleUserScroll(1);
             else if (dy < -50) handleUserScroll(-1);
         }, { passive: true });
 
+        // ============================================================
         // 下雨
+        // ============================================================
         function startRain() {
             if (bannerState.rainStarted) return;
             bannerState.rainStarted = true;
@@ -655,7 +680,7 @@
         }
 
         // ============================================================
-        // 初始化：先预加载图片，拿到原始宽高再开始
+        // 初始化：预加载图片
         // ============================================================
         var img = new Image();
         img.crossOrigin = 'anonymous';
@@ -686,16 +711,28 @@
                 return;
             }
 
-            // 桌面端：正常走 7 阶段动画
+            // 桌面端：锁屏
             document.body.classList.add('banner-locked');
 
+            // ★ 2 秒后自动开始（若期间无滚轮操作）
             bannerState.autoStartTimer = setTimeout(function() {
                 bannerState.autoStartTimer = null;
+                if (bannerState.autoFinished) return;   // 用户已手动干预
                 startAutoPlay();
             }, BANNER_CONFIG.autoStartDelay);
         };
         img.onerror = function() {
             console.error('Banner 图片加载失败：', BANNER_CONFIG.imageUrl);
+            // 用默认尺寸继续
+            BANNER_CONFIG.imgW = 1920;
+            BANNER_CONFIG.imgH = 1080;
+            createFixedFragments();
+            document.body.classList.add('banner-locked');
+            bannerState.autoStartTimer = setTimeout(function() {
+                bannerState.autoStartTimer = null;
+                if (bannerState.autoFinished) return;
+                startAutoPlay();
+            }, BANNER_CONFIG.autoStartDelay);
         };
         img.src = BANNER_CONFIG.imageUrl;
     }
@@ -903,6 +940,7 @@
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         initBannerFragments();
+        initHeaderScroll();
         renderHome();
         updateHeaderHeight();
     });
