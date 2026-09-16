@@ -28,36 +28,15 @@ body {
     overflow-x: hidden;
 }
 
-/* 首屏锁定 */
-body.banner-locked {
-    overflow: hidden;
-    height: 100vh;
-}
-
 a {
     text-decoration: none;
     color: inherit;
 }
 
 /* ============================================================
-   ★ 顶部导航：所有页面统一 50px 高
+   顶部导航：悬浮在 Banner 上，50px
    ============================================================ */
 .site-header {
-    position: relative;
-    height: 50px;
-    background: #0C0A09;
-    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
-    z-index: 100;
-    box-sizing: border-box;
-
-    opacity: 0;
-    pointer-events: none;
-    transform: translateY(-10px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
-}
-
-/* 首页：悬浮在 Banner 内 */
-body.banner-mode .site-header {
     position: fixed;
     top: 0;
     left: 0;
@@ -65,12 +44,8 @@ body.banner-mode .site-header {
     height: 50px;
     background: transparent;
     border-bottom: none;
-}
-
-.site-header.visible {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0);
+    z-index: 100;
+    box-sizing: border-box;
 }
 
 .header-wrap {
@@ -125,6 +100,14 @@ body.banner-mode .site-header {
     font-weight: 500;
 }
 
+/* 滚出首屏后，header 加实心背景 */
+body.scrolled .site-header {
+    background: rgba(12, 10, 9, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
+}
+
 /* ============================================================
    页面切换
    ============================================================ */
@@ -162,67 +145,17 @@ body.banner-mode .site-header {
     z-index: 10;
 }
 
-.random-layer,
-.fixed-layer {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-}
-.fixed-layer {
-    transform: scale(0.9);
-    transform-origin: center center;
-    transition: transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                opacity 0.6s ease;
-}
-
-.random-fragment {
-    position: absolute;
-    opacity: 0;
-    transform: translate(var(--dx, 0), var(--dy, 0))
-               rotate(var(--rot, 0deg))
-               scale(var(--scale, 1));
-    filter: blur(var(--blur, 6px));
-    transition: opacity 0.6s ease;
-    background-repeat: no-repeat;
-    will-change: opacity;
-}
-.random-fragment.show { opacity: 1; }
-
-.fixed-fragment {
-    position: absolute;
-    opacity: 0;
-    transition: opacity 0.7s ease;
-    background-repeat: no-repeat;
-    will-change: opacity;
-}
-.fixed-fragment.show { opacity: 1; }
-
+/* 完整图：直接铺满，无动画 */
 .banner-full {
     position: absolute;
     inset: 0;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    opacity: 0;
-    transform: scale(0.9);
-    transition: opacity 0.8s ease,
-                transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    z-index: 2;
+    z-index: 1;
 }
-.banner-full.show { opacity: 1; }
-.banner-full.zoom { transform: scale(1.05); }
 
-.banner-rain {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 1s ease;
-}
-.banner-rain.show { opacity: 1; }
-
+/* 文字层 */
 .banner-overlay {
     position: absolute;
     inset: 0;
@@ -231,13 +164,6 @@ body.banner-mode .site-header {
     justify-content: center;
     align-items: center;
     z-index: 4;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.8s ease;
-}
-.banner-overlay.show {
-    opacity: 1;
-    pointer-events: auto;
 }
 .banner-text {
     font-size: clamp(28px, 3vw, 48px);
@@ -249,6 +175,7 @@ body.banner-mode .site-header {
     min-height: 60px;
     max-width: 1200px;
     padding: 0 40px;
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
 }
 .banner-text .cursor {
     display: inline-block;
@@ -286,28 +213,6 @@ body.banner-mode .site-header {
     font-size: 16px;
     line-height: 1;
 }
-
-.banner-scroll-hint {
-    position: absolute;
-    bottom: 32px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 4;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    color: #999;
-    font-size: 12px;
-    letter-spacing: 2px;
-    animation: hintBounce 2s ease-in-out infinite;
-    transition: opacity 0.6s ease;
-}
-@keyframes hintBounce {
-    0%, 100% { transform: translate(-50%, 0); opacity: 0.6; }
-    50% { transform: translate(-50%, 8px); opacity: 1; }
-}
-.banner-scroll-hint.hide { opacity: 0; }
 
 /* ============================================================
    间隔条
@@ -851,7 +756,7 @@ body.banner-mode .site-header {
         height: 50px;
         padding: 0 20px;
     }
-    body.banner-mode .site-header {
+    .site-header {
         background: rgba(12, 10, 9, 0.6);
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
