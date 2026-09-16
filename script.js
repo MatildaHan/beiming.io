@@ -132,7 +132,7 @@ async function getSite() {
     var bannerCurrentStep = 0;
 
     var BANNER_CONFIG = {
-        imageUrl: 'images/banner.jpg',    // ★ 换成你的图片路径
+        imageUrl: 'images/wallhaven-qro5vq.jpg',    // ★ 换成你的图片路径
         cols: 6,
         rows: 4,
         randomStage1Count: 4,
