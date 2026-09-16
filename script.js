@@ -40,6 +40,8 @@
         } else {
             document.body.classList.remove('banner-mode');
             document.body.classList.remove('scrolled');
+            // 离开首页时，强制释放拼图滚动锁，避免其他页面无法滚动
+            if (typeof releaseScrollLock === 'function') releaseScrollLock();
         }
 
         updateHeaderHeight();
@@ -137,7 +139,7 @@
     var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS; // 24
 
     var bannerStep = 0;          // 当前步骤 0-6
-    var bannerIntroDone = false; // 拼图动画是否已完成（完成后交还滚动权）
+    var bannerScrollReleased = false; // 是否已释放滚动锁（用户在步骤6继续下滑后为 true）
     var bannerPieces = [];       // 24 个碎片元素
     var bannerScatterTransform = []; // 每个碎片的随机散落 transform（缓存，保持一致）
     var correctOrder = [];       // 步骤 2-5 拼图归位的随机顺序
@@ -186,10 +188,10 @@
                 wrap.appendChild(piece);
                 bannerPieces[idx] = piece;
 
-                // 预生成随机散落效果，保证前后一致不跳变
+                // 预生成随机散落效果（范围更大，更分散），保证前后一致不跳变
                 bannerScatterTransform[idx] =
-                    'translate(' + randRange(-46, 46) + 'vw, ' + randRange(-42, 42) + 'vh) ' +
-                    'rotate(' + randRange(-35, 35) + 'deg) scale(' + randRange(0.85, 1.05) + ')';
+                    'translate(' + randRange(-70, 70) + 'vw, ' + randRange(-60, 60) + 'vh) ' +
+                    'rotate(' + randRange(-55, 55) + 'deg) scale(' + randRange(0.75, 1.1) + ')';
             }
         }
 
@@ -208,8 +210,20 @@
         var piece = bannerPieces[idx];
         if (!piece) return;
         piece.classList.remove('is-scattered');
-        piece.classList.add('is-visible', 'is-corrected');
-        piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+
+        if (!piece.classList.contains('is-visible')) {
+            // 之前完全隐藏：先设置一个柔和的起始态，强制回流后再过渡到位，避免生硬跳变
+            piece.style.transform = 'translate(0, 0) rotate(0deg) scale(0.92)';
+            void piece.offsetWidth; // 强制回流
+            requestAnimationFrame(function() {
+                piece.classList.add('is-visible', 'is-corrected');
+                piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+            });
+        } else {
+            // 之前是散落碎片：直接过渡飞入正确位置
+            piece.classList.add('is-visible', 'is-corrected');
+            piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+        }
     }
 
     function uncorrectPiece(idx) {
@@ -217,6 +231,18 @@
         if (!piece) return;
         piece.classList.remove('is-corrected', 'is-visible');
         piece.style.transform = bannerScatterTransform[idx];
+    }
+
+    // 隐藏所有"散落但尚未归位"的碎片（进入拼合阶段后，早期散落装饰碎片应消失）
+    function clearLooseScatteredPieces() {
+        for (var i = 0; i < FRAG_TOTAL; i++) {
+            var piece = bannerPieces[i];
+            if (!piece) continue;
+            if (piece.classList.contains('is-corrected')) continue;
+            if (piece.classList.contains('is-scattered')) {
+                piece.classList.remove('is-visible', 'is-scattered');
+            }
+        }
     }
 
     function showScattered(count) {
@@ -228,7 +254,7 @@
 
     function resetBannerAnimation() {
         bannerStep = 0;
-        bannerIntroDone = false;
+        bannerScrollReleased = false;
         scatterShownCount = 0;
         correctedShownCount = 0;
         var frag = document.getElementById('bannerFragments');
@@ -239,12 +265,15 @@
         if (rain) rain.classList.remove('rain-active');
         if (overlay) overlay.classList.remove('show');
         if (bannerEl) bannerEl.classList.remove('banner-revealed');
+        document.body.classList.remove('banner-step6');
 
+        engageScrollLock();
         buildBannerFragments();
         applyBannerStep(0);
     }
 
     function applyBannerStep(step) {
+        var prevStep = bannerStep;
         var frag = document.getElementById('bannerFragments');
         var bannerEl = document.getElementById('banner');
 
@@ -252,17 +281,21 @@
         if (step < 2 && correctedShownCount > 0) {
             for (var u = 0; u < correctedShownCount; u++) uncorrectPiece(correctOrder[u]);
             correctedShownCount = 0;
-            if (frag) frag.classList.remove('zoom-out', 'zoom-full');
             if (bannerEl) bannerEl.classList.remove('banner-revealed');
+        }
+
+        // 从步骤 6 往回退：撤销下雨 + 文字等终场效果
+        if (prevStep === 6 && step < 6) {
+            revertBannerFinale();
         }
 
         bannerStep = step;
 
         if (step === 0) {
-            scatterShownCount = randInt(4, 8);
+            scatterShownCount = randInt(5, 9);
             showScattered(scatterShownCount);
         } else if (step === 1) {
-            scatterShownCount = Math.min(FRAG_TOTAL, scatterShownCount + randInt(3, 8));
+            scatterShownCount = Math.min(FRAG_TOTAL, scatterShownCount + randInt(4, 9));
             showScattered(scatterShownCount);
         } else if (step >= 2 && step <= 5) {
             var newCount = (step - 1) * 6; // 6 / 12 / 18 / 24
@@ -271,21 +304,42 @@
             }
             correctedShownCount = newCount;
             showCorrected(correctedShownCount);
-            if (step === 5) {
-                if (frag) frag.classList.add('zoom-out');
-                if (bannerEl) bannerEl.classList.add('banner-revealed');
-            } else if (frag) {
-                frag.classList.remove('zoom-out', 'zoom-full');
-            }
+            clearLooseScatteredPieces(); // 早期散落的装饰碎片消失
+            if (step === 5 && bannerEl) bannerEl.classList.add('banner-revealed');
         } else if (step === 6) {
             correctedShownCount = FRAG_TOTAL;
             showCorrected(FRAG_TOTAL);
-            if (frag) {
+            clearLooseScatteredPieces();
+            if (bannerEl) bannerEl.classList.add('banner-revealed');
+            triggerBannerFinale();
+        }
+
+        // 步骤 2-5：拼合图保持原图 90% 缩放；步骤 6：缩放为 100% 铺满
+        if (frag) {
+            if (step >= 2 && step <= 5) {
+                frag.classList.add('zoom-out');
+                frag.classList.remove('zoom-full');
+            } else if (step === 6) {
                 frag.classList.remove('zoom-out');
                 frag.classList.add('zoom-full');
+            } else {
+                frag.classList.remove('zoom-out', 'zoom-full');
             }
-            bannerIntroDone = true;
-            triggerBannerFinale();
+        }
+
+        // header 仅在步骤 6 时显示
+        document.body.classList.toggle('banner-step6', step === 6);
+    }
+
+    var bannerFinaleTimers = [];
+    var bannerTypewriterTimer = null;
+
+    function clearBannerFinaleTimers() {
+        for (var i = 0; i < bannerFinaleTimers.length; i++) clearTimeout(bannerFinaleTimers[i]);
+        bannerFinaleTimers = [];
+        if (bannerTypewriterTimer) {
+            clearInterval(bannerTypewriterTimer);
+            bannerTypewriterTimer = null;
         }
     }
 
@@ -294,18 +348,28 @@
         var overlay = document.getElementById('bannerOverlay');
 
         // 缩放到 100% 铺满全屏后，出现向左倾斜的下雨效果
-        setTimeout(function() {
+        bannerFinaleTimers.push(setTimeout(function() {
             if (rain) {
                 buildRainDrops(rain);
                 rain.classList.add('rain-active');
             }
-        }, 600);
+        }, 700));
 
         // 下雨效果出现后，打字机文字浮现
-        setTimeout(function() {
+        bannerFinaleTimers.push(setTimeout(function() {
             if (overlay) overlay.classList.add('show');
             startTypewriter();
-        }, 1500);
+        }, 1700));
+    }
+
+    function revertBannerFinale() {
+        clearBannerFinaleTimers();
+        var rain = document.getElementById('bannerRain');
+        var overlay = document.getElementById('bannerOverlay');
+        var textEl = document.getElementById('bannerText');
+        if (rain) rain.classList.remove('rain-active');
+        if (overlay) overlay.classList.remove('show');
+        if (textEl) textEl.innerHTML = '<span class="cursor"></span>';
     }
 
     function buildRainDrops(rain) {
@@ -324,12 +388,25 @@
     }
 
     // ============================================================
-    // 滚轮控制：拼图完成前拦截滚动，逐步推进 6 个阶段
+    // 滚动锁：拼图未完全释放前，首屏禁止上下滑动
+    // ============================================================
+    function engageScrollLock() {
+        document.documentElement.classList.add('banner-scroll-lock');
+        document.body.classList.add('banner-scroll-lock');
+    }
+    function releaseScrollLock() {
+        bannerScrollReleased = true;
+        document.documentElement.classList.remove('banner-scroll-lock');
+        document.body.classList.remove('banner-scroll-lock');
+    }
+
+    // ============================================================
+    // 滚轮控制：拼图完成前拦截滚动，逐步推进/回退 7 个阶段（0-6）
     // ============================================================
     var bannerWheelAccum = 0;
     var bannerWheelCooldown = false;
     var BANNER_WHEEL_THRESHOLD = 55;
-    var BANNER_STEP_COOLDOWN = 750;
+    var BANNER_STEP_COOLDOWN = 800;
 
     function isHomeActive() {
         var home = document.getElementById('page-home');
@@ -337,6 +414,11 @@
     }
 
     function stepBanner(direction) {
+        // 已经完整展示（步骤 6），继续向下滚动即释放滚动锁，进入正常页面滚动
+        if (bannerStep === 6 && direction === 1) {
+            releaseScrollLock();
+            return;
+        }
         var next = bannerStep + direction;
         if (next < 0) next = 0;
         if (next > 6) next = 6;
@@ -349,9 +431,8 @@
     }
 
     function onBannerWheel(e) {
-        if (bannerIntroDone) return; // 动画已完成，交还正常滚动
+        if (bannerScrollReleased) return; // 已释放滚动权，交还正常滚动
         if (!isHomeActive()) return;
-        if (window.scrollY > 4) return; // 已滚出首屏，不再拦截
 
         e.preventDefault();
         if (bannerWheelCooldown) return;
@@ -367,11 +448,11 @@
     // 触屏兼容：用触摸位移模拟滚轮
     var bannerTouchStartY = null;
     function onBannerTouchStart(e) {
-        if (bannerIntroDone || !isHomeActive() || window.scrollY > 4) return;
+        if (bannerScrollReleased || !isHomeActive()) return;
         bannerTouchStartY = e.touches[0].clientY;
     }
     function onBannerTouchMove(e) {
-        if (bannerIntroDone || !isHomeActive() || window.scrollY > 4 || bannerTouchStartY === null) return;
+        if (bannerScrollReleased || !isHomeActive() || bannerTouchStartY === null) return;
         e.preventDefault();
         if (bannerWheelCooldown) return;
         var dy = bannerTouchStartY - e.touches[0].clientY;
@@ -406,12 +487,13 @@
         var index = 0;
         el.innerHTML = '<span class="cursor"></span>';
 
-        var timer = setInterval(function() {
+        bannerTypewriterTimer = setInterval(function() {
             if (index < text.length) {
                 el.innerHTML = text.substring(0, index + 1) + '<span class="cursor"></span>';
                 index++;
             } else {
-                clearInterval(timer);
+                clearInterval(bannerTypewriterTimer);
+                bannerTypewriterTimer = null;
                 setTimeout(function() {
                     el.innerHTML = text;
                 }, 400);
