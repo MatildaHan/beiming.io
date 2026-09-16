@@ -156,15 +156,21 @@
         rainDrops: []
     };
 
-    function initBannerFragments() {
-        var banner = document.getElementById('banner');
-        var randomLayer = document.getElementById('randomLayer');
-        var fixedLayer = document.getElementById('fixedLayer');
-        var fullLayer = document.getElementById('bannerFull');
-        var rainCanvas = document.getElementById('bannerRain');
-        var siteHeader = document.getElementById('siteHeader');
+   function initBannerFragments() {
+    var banner = document.getElementById('banner');
+    var randomLayer = document.getElementById('randomLayer');
+    var fixedLayer = document.getElementById('fixedLayer');
+    var fullLayer = document.getElementById('bannerFull');
+    var rainCanvas = document.getElementById('bannerRain');
+    var siteHeader = document.getElementById('siteHeader');
 
-        if (!banner || !randomLayer || !fixedLayer) return;
+    if (!banner || !randomLayer || !fixedLayer) return;
+
+    // ★ 首页默认进入 banner-mode
+    document.body.classList.add('banner-mode');
+
+    // ... 后续代码不变 ...
+}
 
         var COLS = BANNER_CONFIG.cols;
         var ROWS = BANNER_CONFIG.rows;
