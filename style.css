@@ -176,13 +176,12 @@ body.banner-mode .site-header {
                 opacity 0.6s ease;
 }
 
-/* 随机碎片：倾斜、模糊、放大 20% */
 .random-fragment {
     position: absolute;
     opacity: 0;
     transform: translate(var(--dx, 0), var(--dy, 0))
                rotate(var(--rot, 0deg))
-               scale(var(--scale, 1.2));
+               scale(var(--scale, 1));
     filter: blur(var(--blur, 6px));
     transition: opacity 0.6s ease;
     background-repeat: no-repeat;
@@ -190,7 +189,6 @@ body.banner-mode .site-header {
 }
 .random-fragment.show { opacity: 1; }
 
-/* 固定碎片：正确位置淡入 */
 .fixed-fragment {
     position: absolute;
     opacity: 0;
@@ -200,7 +198,6 @@ body.banner-mode .site-header {
 }
 .fixed-fragment.show { opacity: 1; }
 
-/* 完整图层：90% 缩放（阶段 6） */
 .banner-full {
     position: absolute;
     inset: 0;
@@ -214,10 +211,8 @@ body.banner-mode .site-header {
     z-index: 2;
 }
 .banner-full.show { opacity: 1; }
-/* 阶段 7：铺满 */
-.banner-full.zoom { transform: scale(1); }
+.banner-full.zoom { transform: scale(1.05); }
 
-/* 下雨 canvas */
 .banner-rain {
     position: absolute;
     inset: 0;
@@ -228,7 +223,6 @@ body.banner-mode .site-header {
 }
 .banner-rain.show { opacity: 1; }
 
-/* 文字层：阶段 7 后显示 */
 .banner-overlay {
     position: absolute;
     inset: 0;
@@ -283,8 +277,6 @@ body.banner-mode .site-header {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    position: relative;
-    z-index: 6;
 }
 .banner-btn:hover {
     background: #d8cec4;
@@ -295,7 +287,6 @@ body.banner-mode .site-header {
     line-height: 1;
 }
 
-/* 滚动提示 */
 .banner-scroll-hint {
     position: absolute;
     bottom: 32px;
@@ -311,7 +302,6 @@ body.banner-mode .site-header {
     letter-spacing: 2px;
     animation: hintBounce 2s ease-in-out infinite;
     transition: opacity 0.6s ease;
-    pointer-events: none;
 }
 @keyframes hintBounce {
     0%, 100% { transform: translate(-50%, 0); opacity: 0.6; }
@@ -782,19 +772,6 @@ body.banner-mode .site-header {
     font-size: 13px;
     flex: 1;
     word-break: break-all;
-}
-
-/* ============================================================
-   首页滚出 Banner 后：header 实心背景 + 不遮挡下方内容
-   ============================================================ */
-body.banner-mode.scrolled .site-header {
-    background: rgba(12, 10, 9, 0.92);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
-}
-body.banner-mode.scrolled .home-content {
-    padding-top: 50px;
 }
 
 /* ============================================================
