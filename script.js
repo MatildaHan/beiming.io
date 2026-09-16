@@ -34,13 +34,13 @@
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
-        // ★ 切换 header 模式
         if (pageId === 'page-home') {
             document.body.classList.add('banner-mode');
+            document.body.classList.toggle('banner-step6', bannerStep === 6);
         } else {
             document.body.classList.remove('banner-mode');
+            document.body.classList.remove('banner-step6');
             document.body.classList.remove('scrolled');
-            // 离开首页时，强制释放拼图滚动锁，避免其他页面无法滚动
             if (typeof releaseScrollLock === 'function') releaseScrollLock();
         }
 
@@ -118,7 +118,6 @@
         if (!banner) return;
 
         window.addEventListener('scroll', function() {
-            // 只在首页处理
             if (!document.body.classList.contains('banner-mode')) return;
 
             var bannerBottom = banner.offsetTop + banner.offsetHeight;
@@ -138,12 +137,12 @@
     var FRAG_ROWS = 4;
     var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS; // 24
 
-    var bannerStep = 0;          // 当前步骤 0-6
-    var bannerScrollReleased = false; // 是否已释放滚动锁（用户在步骤6继续下滑后为 true）
-    var bannerPieces = [];       // 24 个碎片元素
-    var bannerScatterTransform = []; // 每个碎片的随机散落 transform（缓存，保持一致）
-    var correctOrder = [];       // 步骤 2-5 拼图归位的随机顺序
-    var scatterOrder = [];       // 步骤 0-1 随机散落出现的顺序
+    var bannerStep = 0;
+    var bannerScrollReleased = false;
+    var bannerPieces = [];
+    var bannerScatterTransform = [];
+    var correctOrder = [];
+    var scatterOrder = [];
     var scatterShownCount = 0;
     var correctedShownCount = 0;
 
@@ -181,9 +180,9 @@
                 piece.className = 'banner-piece';
                 piece.style.left = (col / FRAG_COLS * 100) + '%';
                 piece.style.top = (row / FRAG_ROWS * 100) + '%';
-                // 宽高各多留 2px 重叠，避免父级 scale 缩放时因子像素取整出现拼接缝隙
-                piece.style.width = 'calc(' + (100 / FRAG_COLS) + '% + 2px)';
-                piece.style.height = 'calc(' + (100 / FRAG_ROWS) + '% + 2px)';
+                // ★ 用纯百分比，不加 2px，避免不同缩放下的错位
+                piece.style.width = (100 / FRAG_COLS) + '%';
+                piece.style.height = (100 / FRAG_ROWS) + '%';
                 piece.style.backgroundImage = 'url(' + BANNER_IMG + ')';
                 piece.style.backgroundSize = (FRAG_COLS * 100) + '% ' + (FRAG_ROWS * 100) + '%';
                 piece.style.backgroundPosition =
@@ -191,7 +190,7 @@
                 wrap.appendChild(piece);
                 bannerPieces[idx] = piece;
 
-                // 预生成随机散落效果（范围更大，更分散），保证前后一致不跳变
+                // 随机散落 transform（范围较大，更分散）
                 bannerScatterTransform[idx] =
                     'translate(' + randRange(-70, 70) + 'vw, ' + randRange(-60, 60) + 'vh) ' +
                     'rotate(' + randRange(-55, 55) + 'deg) scale(' + randRange(0.75, 1.1) + ')';
@@ -215,15 +214,15 @@
         piece.classList.remove('is-scattered');
 
         if (!piece.classList.contains('is-visible')) {
-            // 之前完全隐藏：先设置一个柔和的起始态，强制回流后再过渡到位，避免生硬跳变
+            // 之前隐藏：先给一个柔和起始态，再过渡到正确位置
             piece.style.transform = 'translate(0, 0) rotate(0deg) scale(0.92)';
-            void piece.offsetWidth; // 强制回流
+            void piece.offsetWidth;
             requestAnimationFrame(function() {
                 piece.classList.add('is-visible', 'is-corrected');
                 piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
             });
         } else {
-            // 之前是散落碎片：直接过渡飞入正确位置
+            // 之前是散落：直接飞入
             piece.classList.add('is-visible', 'is-corrected');
             piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
         }
@@ -236,7 +235,6 @@
         piece.style.transform = bannerScatterTransform[idx];
     }
 
-    // 隐藏所有"散落但尚未归位"的碎片（进入拼合阶段后，早期散落装饰碎片应消失）
     function clearLooseScatteredPieces() {
         for (var i = 0; i < FRAG_TOTAL; i++) {
             var piece = bannerPieces[i];
@@ -281,14 +279,12 @@
         var frag = document.getElementById('bannerFragments');
         var bannerEl = document.getElementById('banner');
 
-        // 往回滚出拼图阶段：把已归位的碎片还原
         if (step < 2 && correctedShownCount > 0) {
             for (var u = 0; u < correctedShownCount; u++) uncorrectPiece(correctOrder[u]);
             correctedShownCount = 0;
             if (bannerEl) bannerEl.classList.remove('banner-revealed');
         }
 
-        // 从步骤 6 往回退：撤销下雨 + 文字等终场效果
         if (prevStep === 6 && step < 6) {
             revertBannerFinale();
         }
@@ -302,13 +298,13 @@
             scatterShownCount = Math.min(FRAG_TOTAL, scatterShownCount + randInt(4, 9));
             showScattered(scatterShownCount);
         } else if (step >= 2 && step <= 5) {
-            var newCount = (step - 1) * 6; // 6 / 12 / 18 / 24
+            var newCount = (step - 1) * 6;
             if (newCount < correctedShownCount) {
                 for (var d = newCount; d < correctedShownCount; d++) uncorrectPiece(correctOrder[d]);
             }
             correctedShownCount = newCount;
             showCorrected(correctedShownCount);
-            clearLooseScatteredPieces(); // 早期散落的装饰碎片消失
+            clearLooseScatteredPieces();
             if (step === 5 && bannerEl) bannerEl.classList.add('banner-revealed');
         } else if (step === 6) {
             correctedShownCount = FRAG_TOTAL;
@@ -318,7 +314,7 @@
             triggerBannerFinale();
         }
 
-        // 步骤 2-5：拼合图保持原图 90% 缩放；步骤 6：缩放为 100% 铺满
+        // 缩放：2-5 为 0.9；6 为 1
         if (frag) {
             if (step >= 2 && step <= 5) {
                 frag.classList.add('zoom-out');
@@ -331,7 +327,7 @@
             }
         }
 
-        // header 仅在步骤 6 时显示
+        // header 仅在步骤 6 显示
         document.body.classList.toggle('banner-step6', step === 6);
     }
 
@@ -351,13 +347,11 @@
         var overlay = document.getElementById('bannerOverlay');
         var finalImg = document.getElementById('bannerFinalImage');
 
-        // 缩放到 100% 铺满全屏：换上无缝原图，并出现向左倾斜的下雨效果
         bannerFinaleTimers.push(setTimeout(function() {
             if (finalImg) finalImg.classList.add('show');
             startRain();
         }, 500));
 
-        // 下雨效果出现后，打字机文字浮现
         bannerFinaleTimers.push(setTimeout(function() {
             if (overlay) overlay.classList.add('show');
             startTypewriter();
@@ -376,7 +370,7 @@
     }
 
     // ============================================================
-    // Canvas 下雨效果：雨点向左倾斜下落
+    // Canvas 下雨（向左倾斜，雨点更大）
     // ============================================================
     var rainCanvas = null;
     var rainCtx = null;
@@ -408,12 +402,12 @@
 
     function makeRainParticle(w, h, randomY) {
         return {
-            x: Math.random() * (w + 260) - 130, // 起点覆盖右侧外围，向左飘入画面
+            x: Math.random() * (w + 260) - 130,
             y: randomY ? Math.random() * h : -30 - Math.random() * 60,
-            len: 16 + Math.random() * 26,
-            speed: 6 + Math.random() * 7,       // 下落速度
-            drift: -(2.2 + Math.random() * 3.2), // 向左的水平速度
-            opacity: 0.12 + Math.random() * 0.35
+            len: 28 + Math.random() * 42,          // ★ 加长：28~70
+            speed: 6 + Math.random() * 7,
+            drift: -(2.2 + Math.random() * 3.2),
+            opacity: 0.18 + Math.random() * 0.42   // ★ 略提透明度
         };
     }
 
@@ -436,10 +430,10 @@
         for (var i = 0; i < rainParticles.length; i++) {
             var p = rainParticles[i];
             rainCtx.globalAlpha = p.opacity;
-            rainCtx.lineWidth = 1.3;
+            rainCtx.lineWidth = 3.5;               // ★ 加粗：1.3 → 3.5
             rainCtx.beginPath();
             rainCtx.moveTo(p.x, p.y);
-            rainCtx.lineTo(p.x + p.drift * 1.8, p.y + p.len); // 线条向左倾斜
+            rainCtx.lineTo(p.x + p.drift * 1.8, p.y + p.len);
             rainCtx.stroke();
             p.x += p.drift;
             p.y += p.speed;
@@ -478,7 +472,7 @@
     }
 
     // ============================================================
-    // 滚动锁：拼图未完全释放前，首屏禁止上下滑动
+    // 滚动锁
     // ============================================================
     function engageScrollLock() {
         document.documentElement.classList.add('banner-scroll-lock');
@@ -491,7 +485,7 @@
     }
 
     // ============================================================
-    // 滚轮控制：拼图完成前拦截滚动，逐步推进/回退 7 个阶段（0-6）
+    // 滚轮控制
     // ============================================================
     var bannerWheelAccum = 0;
     var bannerWheelCooldown = false;
@@ -504,7 +498,6 @@
     }
 
     function stepBanner(direction) {
-        // 已经完整展示（步骤 6），继续向下滚动即释放滚动锁，进入正常页面滚动
         if (bannerStep === 6 && direction === 1) {
             releaseScrollLock();
             return;
@@ -521,7 +514,7 @@
     }
 
     function onBannerWheel(e) {
-        if (bannerScrollReleased) return; // 已释放滚动权，交还正常滚动
+        if (bannerScrollReleased) return;
         if (!isHomeActive()) return;
 
         e.preventDefault();
@@ -535,7 +528,6 @@
         }
     }
 
-    // 触屏兼容：用触摸位移模拟滚轮
     var bannerTouchStartY = null;
     function onBannerTouchStart(e) {
         if (bannerScrollReleased || !isHomeActive()) return;
@@ -559,7 +551,6 @@
         var bannerFull = document.getElementById('bannerFull');
         if (!bannerFull) return;
 
-        // 首页默认 banner-mode，header 悬浮
         document.body.classList.add('banner-mode');
 
         resetBannerAnimation();
