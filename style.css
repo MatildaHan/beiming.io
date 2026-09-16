@@ -28,11 +28,6 @@ body {
     overflow-x: hidden;
 }
 
-body.banner-locked {
-    overflow: hidden;
-    height: 100vh;
-}
-
 a {
     text-decoration: none;
     color: inherit;
@@ -48,11 +43,9 @@ a {
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
     z-index: 100;
     box-sizing: border-box;
-    opacity: 1;
-    pointer-events: auto;
-    transition: opacity 0.6s ease, background 0.6s ease, border-bottom 0.6s ease;
 }
 
+/* 首页：悬浮在 Banner 上 */
 body.banner-mode .site-header {
     position: fixed;
     top: 0;
@@ -61,20 +54,32 @@ body.banner-mode .site-header {
     height: 50px;
     background: transparent;
     border-bottom: none;
-    opacity: 0;
-    pointer-events: none;
 }
 
-body.banner-mode.banner-revealed-mode .site-header {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-body.banner-mode.banner-revealed-mode.scrolled .site-header {
+/* 滚出首屏后，首页 header 加实心背景 */
+body.banner-mode.scrolled .site-header {
     background: rgba(12, 10, 9, 0.92);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
+}
+
+/* 拼图动画期间（步骤 6 之前）header 隐藏，步骤 6 达成后淡入 */
+body.banner-mode .site-header {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+}
+body.banner-mode.banner-step6 .site-header {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 拼图动画未完成时锁定首屏，禁止上下滑动 */
+html.banner-scroll-lock,
+body.banner-scroll-lock {
+    overflow: hidden;
+    height: 100%;
 }
 
 .header-wrap {
@@ -166,7 +171,7 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
     z-index: 10;
 }
 
-/* 完整图：铺满，作为底层氛围图 */
+/* 完整图：铺满，作为底层氛围图（模糊变暗），不参与拼图动画 */
 .banner-full {
     position: absolute;
     inset: 0;
@@ -191,50 +196,69 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
     inset: 0;
     z-index: 2;
     transform-origin: center center;
-    transform: scale(0.9);       /* ★ 默认 90% */
-    transition: transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transform: scale(1);
+    transition: transform 1.15s cubic-bezier(0.22, 0.61, 0.36, 1);
     will-change: transform;
 }
+.banner-fragments.zoom-out {
+    transform: scale(0.9);
+}
 .banner-fragments.zoom-full {
-    transform: scale(1);         /* ★ 阶段 6：铺满 */
+    transform: scale(1);
 }
 
 .banner-piece {
     position: absolute;
     background-repeat: no-repeat;
     opacity: 0;
-    transform: translate(0, 0) rotate(0deg) scale(1);
+    transform: translate(0, 0) rotate(0deg) scale(0.92);
     filter: blur(0);
     transition:
-        transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-        filter 1s ease,
-        opacity 0.9s ease;
+        transform 1.3s cubic-bezier(0.16, 1, 0.3, 1),
+        filter 1.1s ease,
+        opacity 1s ease;
     will-change: transform, filter, opacity;
 }
 .banner-piece.is-visible {
     opacity: 1;
 }
 .banner-piece.is-scattered {
-    filter: blur(8px);
+    filter: blur(7px);
 }
 .banner-piece.is-corrected {
     filter: blur(0);
 }
 
-/* ★ 下雨 canvas（向左倾斜） */
-.banner-rain {
+/* 下雨效果层：向左倾斜下落 */
+.rain-layer {
     position: absolute;
     inset: 0;
     z-index: 3;
+    overflow: hidden;
     pointer-events: none;
     opacity: 0;
     transition: opacity 1.4s ease;
 }
-.banner-rain.show {
+.rain-layer.rain-active {
     opacity: 1;
 }
+.rain-drop {
+    position: absolute;
+    top: -15%;
+    width: 1.5px;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.55));
+    animation-name: bannerRainFall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    transform: rotate(-14deg);
+}
+@keyframes bannerRainFall {
+    0% { transform: translate(0, -10vh) rotate(-14deg); opacity: 0; }
+    12% { opacity: 0.6; }
+    100% { transform: translate(-18vw, 115vh) rotate(-14deg); opacity: 0.1; }
+}
 
-/* 文字层 */
+/* 文字层：拼图完成、下雨出现后才淡入 */
 .banner-overlay {
     position: absolute;
     inset: 0;
@@ -245,11 +269,9 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
     z-index: 4;
     opacity: 0;
     transition: opacity 1s ease;
-    pointer-events: none;
 }
 .banner-overlay.show {
     opacity: 1;
-    pointer-events: auto;
 }
 .banner-text {
     font-size: clamp(28px, 3vw, 48px);
@@ -324,7 +346,9 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
 .gap-divider::before { left: calc(50% - 720px); }
 .gap-divider::after  { right: calc(50% - 720px); }
 
-/* 首页随笔区（4 列） */
+/* ============================================================
+   首页随笔区（4 列）
+   ============================================================ */
 .essay-section {
     width: calc(100% + 120px);
     margin-left: -60px;
@@ -399,7 +423,9 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
 .essay-blank-right .essay-mark { right: 0; }
 .essay-card:hover { background: #141110; }
 
-/* 首页杂记区 */
+/* ============================================================
+   首页杂记区
+   ============================================================ */
 .note-section {
     width: calc(100% + 120px);
     margin-left: -60px;
@@ -481,7 +507,9 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
     -webkit-box-orient: vertical;
 }
 
-/* 随笔页面 */
+/* ============================================================
+   随笔页面
+   ============================================================ */
 .suibi-page {
     width: 100%;
     position: relative;
@@ -548,7 +576,9 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
     font-size: 13px;
 }
 
-/* 杂记页面 + 详情 */
+/* ============================================================
+   杂记页面 + 详情
+   ============================================================ */
 .zaji-page {
     width: 100%;
     position: relative;
@@ -682,7 +712,9 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
     color: #0C0A09;
 }
 
-/* 闲话页面 */
+/* ============================================================
+   闲话页面
+   ============================================================ */
 .xianhua-page {
     width: 100%;
     position: relative;
@@ -755,7 +787,9 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
     word-break: break-all;
 }
 
-/* 响应式 */
+/* ============================================================
+   响应式
+   ============================================================ */
 @media (max-width: 1500px) {
     .header-wrap,
     .container { width: 100%; padding: 0 40px; }
@@ -830,6 +864,7 @@ body.banner-mode.banner-revealed-mode.scrolled .site-header {
         height: 50px;
         padding: 0 20px;
     }
+    /* 首页 header 加半透明背景，避免文字看不清 */
     body.banner-mode .site-header {
         background: rgba(12, 10, 9, 0.6);
         backdrop-filter: blur(8px);

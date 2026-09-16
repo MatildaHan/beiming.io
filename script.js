@@ -2,7 +2,9 @@
 (function() {
     var DB = window.DB;
 
-    // ========== 站点信息 ==========
+    // ============================================================
+    // 站点信息
+    // ============================================================
     async function getSite() {
         return {
             site_name: '须臾之间',
@@ -10,7 +12,9 @@
         };
     }
 
-    // ========== 页面导航 ==========
+    // ============================================================
+    // 页面导航
+    // ============================================================
     var sections = document.querySelectorAll('.page-section');
     var navLinks = document.querySelectorAll('#globalNav a');
 
@@ -30,20 +34,14 @@
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
+        // ★ 切换 header 模式
         if (pageId === 'page-home') {
             document.body.classList.add('banner-mode');
-            if (!bannerIntroDone) {
-                document.body.classList.add('banner-locked');
-                document.body.classList.remove('banner-revealed-mode');
-            } else {
-                document.body.classList.remove('banner-locked');
-                document.body.classList.add('banner-revealed-mode');
-            }
         } else {
             document.body.classList.remove('banner-mode');
             document.body.classList.remove('scrolled');
-            document.body.classList.remove('banner-locked');
-            document.body.classList.remove('banner-revealed-mode');
+            // 离开首页时，强制释放拼图滚动锁，避免其他页面无法滚动
+            if (typeof releaseScrollLock === 'function') releaseScrollLock();
         }
 
         updateHeaderHeight();
@@ -62,7 +60,9 @@
         });
     }
 
-    // ========== 内部跳转 ==========
+    // ============================================================
+    // 内部跳转
+    // ============================================================
     document.addEventListener('click', function(e) {
         var target = e.target.closest('[data-sub]');
         if (target) {
@@ -81,6 +81,7 @@
             }
             return;
         }
+
         var backBtn = e.target.closest('[data-back]');
         if (backBtn) {
             e.preventDefault();
@@ -89,7 +90,9 @@
         }
     });
 
-    // ========== Logo ==========
+    // ============================================================
+    // Logo
+    // ============================================================
     function updateLogo(site) {
         var siteNameEl = document.getElementById('siteName');
         var siteDescEl = document.getElementById('siteDesc');
@@ -97,7 +100,9 @@
         if (siteDescEl) siteDescEl.textContent = site.site_desc || '寄蜉蝣于天地，渺沧海之一粟';
     }
 
-    // ========== header 高度 ==========
+    // ============================================================
+    // header 高度
+    // ============================================================
     function updateHeaderHeight() {
         var header = document.querySelector('.site-header');
         if (!header) return;
@@ -105,12 +110,17 @@
         document.documentElement.style.setProperty('--header-height', h + 'px');
     }
 
-    // ========== 滚出首屏后 header 加实心背景 ==========
+    // ============================================================
+    // 滚出首屏后 header 加实心背景（仅首页）
+    // ============================================================
     function initHeaderScroll() {
         var banner = document.getElementById('banner');
         if (!banner) return;
+
         window.addEventListener('scroll', function() {
+            // 只在首页处理
             if (!document.body.classList.contains('banner-mode')) return;
+
             var bannerBottom = banner.offsetTop + banner.offsetHeight;
             if (window.scrollY >= bannerBottom - 50) {
                 document.body.classList.add('scrolled');
@@ -121,19 +131,19 @@
     }
 
     // ============================================================
-    // Banner 碎片拼图
+    // Banner 初始化 —— 碎片拼图 + 滚轮分步动画
     // ============================================================
     var BANNER_IMG = 'images/0916.jpg';
     var FRAG_COLS = 6;
     var FRAG_ROWS = 4;
-    var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS;
+    var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS; // 24
 
-    var bannerStep = 0;
-    var bannerIntroDone = false;
-    var bannerPieces = [];
-    var bannerScatterTransform = [];
-    var correctOrder = [];
-    var scatterOrder = [];
+    var bannerStep = 0;          // 当前步骤 0-6
+    var bannerScrollReleased = false; // 是否已释放滚动锁（用户在步骤6继续下滑后为 true）
+    var bannerPieces = [];       // 24 个碎片元素
+    var bannerScatterTransform = []; // 每个碎片的随机散落 transform（缓存，保持一致）
+    var correctOrder = [];       // 步骤 2-5 拼图归位的随机顺序
+    var scatterOrder = [];       // 步骤 0-1 随机散落出现的顺序
     var scatterShownCount = 0;
     var correctedShownCount = 0;
 
@@ -145,8 +155,12 @@
         }
         return a;
     }
-    function randRange(min, max) { return Math.random() * (max - min) + min; }
-    function randInt(min, max) { return Math.floor(randRange(min, max + 1)); }
+    function randRange(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+    function randInt(min, max) {
+        return Math.floor(randRange(min, max + 1));
+    }
 
     function buildBannerFragments() {
         var wrap = document.getElementById('bannerFragments');
@@ -174,10 +188,10 @@
                 wrap.appendChild(piece);
                 bannerPieces[idx] = piece;
 
-                // ★ 加大分散范围
+                // 预生成随机散落效果（范围更大，更分散），保证前后一致不跳变
                 bannerScatterTransform[idx] =
-                    'translate(' + randRange(-75, 75) + 'vw, ' + randRange(-65, 65) + 'vh) ' +
-                    'rotate(' + randRange(-45, 45) + 'deg) scale(' + randRange(0.7, 1.1) + ')';
+                    'translate(' + randRange(-70, 70) + 'vw, ' + randRange(-60, 60) + 'vh) ' +
+                    'rotate(' + randRange(-55, 55) + 'deg) scale(' + randRange(0.75, 1.1) + ')';
             }
         }
 
@@ -196,8 +210,20 @@
         var piece = bannerPieces[idx];
         if (!piece) return;
         piece.classList.remove('is-scattered');
-        piece.classList.add('is-visible', 'is-corrected');
-        piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+
+        if (!piece.classList.contains('is-visible')) {
+            // 之前完全隐藏：先设置一个柔和的起始态，强制回流后再过渡到位，避免生硬跳变
+            piece.style.transform = 'translate(0, 0) rotate(0deg) scale(0.92)';
+            void piece.offsetWidth; // 强制回流
+            requestAnimationFrame(function() {
+                piece.classList.add('is-visible', 'is-corrected');
+                piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+            });
+        } else {
+            // 之前是散落碎片：直接过渡飞入正确位置
+            piece.classList.add('is-visible', 'is-corrected');
+            piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+        }
     }
 
     function uncorrectPiece(idx) {
@@ -207,11 +233,16 @@
         piece.style.transform = bannerScatterTransform[idx];
     }
 
-    function hideRandomPiece(idx) {
-        var piece = bannerPieces[idx];
-        if (!piece) return;
-        piece.classList.remove('is-visible', 'is-scattered');
-        piece.style.transform = bannerScatterTransform[idx];
+    // 隐藏所有"散落但尚未归位"的碎片（进入拼合阶段后，早期散落装饰碎片应消失）
+    function clearLooseScatteredPieces() {
+        for (var i = 0; i < FRAG_TOTAL; i++) {
+            var piece = bannerPieces[i];
+            if (!piece) continue;
+            if (piece.classList.contains('is-corrected')) continue;
+            if (piece.classList.contains('is-scattered')) {
+                piece.classList.remove('is-visible', 'is-scattered');
+            }
+        }
     }
 
     function showScattered(count) {
@@ -223,187 +254,159 @@
 
     function resetBannerAnimation() {
         bannerStep = 0;
-        bannerIntroDone = false;
+        bannerScrollReleased = false;
         scatterShownCount = 0;
         correctedShownCount = 0;
-
         var frag = document.getElementById('bannerFragments');
+        var rain = document.getElementById('bannerRain');
         var overlay = document.getElementById('bannerOverlay');
         var bannerEl = document.getElementById('banner');
-
-        if (frag) frag.classList.remove('zoom-full');
+        if (frag) frag.classList.remove('zoom-out', 'zoom-full');
+        if (rain) rain.classList.remove('rain-active');
         if (overlay) overlay.classList.remove('show');
         if (bannerEl) bannerEl.classList.remove('banner-revealed');
+        document.body.classList.remove('banner-step6');
 
-        document.body.classList.add('banner-locked');
-        document.body.classList.remove('banner-revealed-mode');
-
-        stopRain();
-
+        engageScrollLock();
         buildBannerFragments();
         applyBannerStep(0);
     }
 
     function applyBannerStep(step) {
+        var prevStep = bannerStep;
         var frag = document.getElementById('bannerFragments');
         var bannerEl = document.getElementById('banner');
 
-        // 从 ≥2 退回 0/1 时，恢复随机
-        if (step < 2) {
-            for (var k = 0; k < bannerPieces.length; k++) {
-                var p = bannerPieces[k];
-                if (p && p.classList.contains('is-corrected')) {
-                    p.classList.remove('is-corrected', 'is-visible');
-                    p.style.transform = bannerScatterTransform[k];
-                }
-            }
+        // 往回滚出拼图阶段：把已归位的碎片还原
+        if (step < 2 && correctedShownCount > 0) {
+            for (var u = 0; u < correctedShownCount; u++) uncorrectPiece(correctOrder[u]);
             correctedShownCount = 0;
-            if (frag) frag.classList.remove('zoom-full');
             if (bannerEl) bannerEl.classList.remove('banner-revealed');
-            document.body.classList.remove('banner-revealed-mode');
-            document.body.classList.add('banner-locked');
+        }
+
+        // 从步骤 6 往回退：撤销下雨 + 文字等终场效果
+        if (prevStep === 6 && step < 6) {
+            revertBannerFinale();
         }
 
         bannerStep = step;
 
         if (step === 0) {
-            scatterShownCount = randInt(4, 8);
+            scatterShownCount = randInt(5, 9);
             showScattered(scatterShownCount);
         } else if (step === 1) {
-            scatterShownCount = Math.min(FRAG_TOTAL, scatterShownCount + randInt(3, 8));
+            scatterShownCount = Math.min(FRAG_TOTAL, scatterShownCount + randInt(4, 9));
             showScattered(scatterShownCount);
         } else if (step >= 2 && step <= 5) {
-            // ★ 进入阶段 2 时，清除所有随机碎片
-            if (step === 2) {
-                for (var s = 0; s < scatterShownCount; s++) {
-                    hideRandomPiece(scatterOrder[s]);
-                }
-                scatterShownCount = 0;
-            }
-
-            var newCount = (step - 1) * 6;
+            var newCount = (step - 1) * 6; // 6 / 12 / 18 / 24
             if (newCount < correctedShownCount) {
                 for (var d = newCount; d < correctedShownCount; d++) uncorrectPiece(correctOrder[d]);
             }
             correctedShownCount = newCount;
             showCorrected(correctedShownCount);
-
-            if (frag) frag.classList.remove('zoom-full');
-            if (bannerEl) bannerEl.classList.remove('banner-revealed');
-            document.body.classList.remove('banner-revealed-mode');
-            document.body.classList.add('banner-locked');
+            clearLooseScatteredPieces(); // 早期散落的装饰碎片消失
+            if (step === 5 && bannerEl) bannerEl.classList.add('banner-revealed');
         } else if (step === 6) {
             correctedShownCount = FRAG_TOTAL;
             showCorrected(FRAG_TOTAL);
-            if (frag) frag.classList.add('zoom-full');
+            clearLooseScatteredPieces();
             if (bannerEl) bannerEl.classList.add('banner-revealed');
-            document.body.classList.add('banner-revealed-mode');
-            document.body.classList.remove('banner-locked');
-            bannerIntroDone = true;
             triggerBannerFinale();
         }
-    }
 
-    // ============================================================
-    // 下雨（canvas）
-    // ============================================================
-    var rainRAF = null;
-
-    function startRain(canvas) {
-        if (rainRAF) return;
-        canvas.width = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
-
-        var ctx = canvas.getContext('2d');
-        var angleRad = -15 * Math.PI / 180;
-        var sinA = Math.sin(angleRad);
-        var cosA = Math.cos(angleRad);
-
-        var drops = [];
-        for (var i = 0; i < 90; i++) {
-            drops.push({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                len: 18 + Math.random() * 16,
-                speed: 8 + Math.random() * 8,
-                alpha: 0.18 + Math.random() * 0.35
-            });
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (var i = 0; i < drops.length; i++) {
-                var d = drops[i];
-                var endX = d.x + d.len * sinA;
-                var endY = d.y + d.len * cosA;
-
-                ctx.beginPath();
-                ctx.strokeStyle = 'rgba(200, 220, 255, ' + d.alpha + ')';
-                ctx.lineWidth = 2.2;
-                ctx.lineCap = 'round';
-                ctx.moveTo(d.x, d.y);
-                ctx.lineTo(endX, endY);
-                ctx.stroke();
-
-                d.x += d.speed * sinA;
-                d.y += d.speed * cosA;
-
-                if (d.y > canvas.height + 30) {
-                    d.y = -30;
-                    d.x = Math.random() * (canvas.width + 100) - 50;
-                }
-                if (d.x < -30) {
-                    d.x = canvas.width + 20;
-                    d.y = Math.random() * canvas.height * 0.5 - 100;
-                }
+        // 步骤 2-5：拼合图保持原图 90% 缩放；步骤 6：缩放为 100% 铺满
+        if (frag) {
+            if (step >= 2 && step <= 5) {
+                frag.classList.add('zoom-out');
+                frag.classList.remove('zoom-full');
+            } else if (step === 6) {
+                frag.classList.remove('zoom-out');
+                frag.classList.add('zoom-full');
+            } else {
+                frag.classList.remove('zoom-out', 'zoom-full');
             }
-            rainRAF = requestAnimationFrame(draw);
         }
-        draw();
 
-        window.addEventListener('resize', function() {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-        });
+        // header 仅在步骤 6 时显示
+        document.body.classList.toggle('banner-step6', step === 6);
     }
 
-    function stopRain() {
-        if (rainRAF) {
-            cancelAnimationFrame(rainRAF);
-            rainRAF = null;
-        }
-        var canvas = document.getElementById('bannerRain');
-        if (canvas) {
-            canvas.classList.remove('show');
-            var ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var bannerFinaleTimers = [];
+    var bannerTypewriterTimer = null;
+
+    function clearBannerFinaleTimers() {
+        for (var i = 0; i < bannerFinaleTimers.length; i++) clearTimeout(bannerFinaleTimers[i]);
+        bannerFinaleTimers = [];
+        if (bannerTypewriterTimer) {
+            clearInterval(bannerTypewriterTimer);
+            bannerTypewriterTimer = null;
         }
     }
 
     function triggerBannerFinale() {
-        var canvas = document.getElementById('bannerRain');
+        var rain = document.getElementById('bannerRain');
         var overlay = document.getElementById('bannerOverlay');
 
-        setTimeout(function() {
-            if (canvas) {
-                canvas.classList.add('show');
-                startRain(canvas);
+        // 缩放到 100% 铺满全屏后，出现向左倾斜的下雨效果
+        bannerFinaleTimers.push(setTimeout(function() {
+            if (rain) {
+                buildRainDrops(rain);
+                rain.classList.add('rain-active');
             }
-        }, 700);
+        }, 700));
 
-        setTimeout(function() {
+        // 下雨效果出现后，打字机文字浮现
+        bannerFinaleTimers.push(setTimeout(function() {
             if (overlay) overlay.classList.add('show');
             startTypewriter();
-        }, 1600);
+        }, 1700));
+    }
+
+    function revertBannerFinale() {
+        clearBannerFinaleTimers();
+        var rain = document.getElementById('bannerRain');
+        var overlay = document.getElementById('bannerOverlay');
+        var textEl = document.getElementById('bannerText');
+        if (rain) rain.classList.remove('rain-active');
+        if (overlay) overlay.classList.remove('show');
+        if (textEl) textEl.innerHTML = '<span class="cursor"></span>';
+    }
+
+    function buildRainDrops(rain) {
+        if (rain.childElementCount > 0) return; // 只生成一次
+        var count = 90;
+        var html = '';
+        for (var i = 0; i < count; i++) {
+            var left = randRange(-5, 105);
+            var height = randRange(50, 130);
+            var duration = randRange(0.9, 2.1);
+            var delay = randRange(0, 2.5);
+            html += '<span class="rain-drop" style="left:' + left + '%;height:' + height +
+                'px;animation-duration:' + duration + 's;animation-delay:' + delay + 's;"></span>';
+        }
+        rain.innerHTML = html;
     }
 
     // ============================================================
-    // 滚轮控制
+    // 滚动锁：拼图未完全释放前，首屏禁止上下滑动
+    // ============================================================
+    function engageScrollLock() {
+        document.documentElement.classList.add('banner-scroll-lock');
+        document.body.classList.add('banner-scroll-lock');
+    }
+    function releaseScrollLock() {
+        bannerScrollReleased = true;
+        document.documentElement.classList.remove('banner-scroll-lock');
+        document.body.classList.remove('banner-scroll-lock');
+    }
+
+    // ============================================================
+    // 滚轮控制：拼图完成前拦截滚动，逐步推进/回退 7 个阶段（0-6）
     // ============================================================
     var bannerWheelAccum = 0;
     var bannerWheelCooldown = false;
     var BANNER_WHEEL_THRESHOLD = 55;
-    var BANNER_STEP_COOLDOWN = 750;
+    var BANNER_STEP_COOLDOWN = 800;
 
     function isHomeActive() {
         var home = document.getElementById('page-home');
@@ -411,6 +414,11 @@
     }
 
     function stepBanner(direction) {
+        // 已经完整展示（步骤 6），继续向下滚动即释放滚动锁，进入正常页面滚动
+        if (bannerStep === 6 && direction === 1) {
+            releaseScrollLock();
+            return;
+        }
         var next = bannerStep + direction;
         if (next < 0) next = 0;
         if (next > 6) next = 6;
@@ -423,9 +431,8 @@
     }
 
     function onBannerWheel(e) {
-        if (bannerIntroDone) return;
+        if (bannerScrollReleased) return; // 已释放滚动权，交还正常滚动
         if (!isHomeActive()) return;
-        if (window.scrollY > 4) return;
 
         e.preventDefault();
         if (bannerWheelCooldown) return;
@@ -438,13 +445,14 @@
         }
     }
 
+    // 触屏兼容：用触摸位移模拟滚轮
     var bannerTouchStartY = null;
     function onBannerTouchStart(e) {
-        if (bannerIntroDone || !isHomeActive() || window.scrollY > 4) return;
+        if (bannerScrollReleased || !isHomeActive()) return;
         bannerTouchStartY = e.touches[0].clientY;
     }
     function onBannerTouchMove(e) {
-        if (bannerIntroDone || !isHomeActive() || window.scrollY > 4 || bannerTouchStartY === null) return;
+        if (bannerScrollReleased || !isHomeActive() || bannerTouchStartY === null) return;
         e.preventDefault();
         if (bannerWheelCooldown) return;
         var dy = bannerTouchStartY - e.touches[0].clientY;
@@ -461,8 +469,8 @@
         var bannerFull = document.getElementById('bannerFull');
         if (!bannerFull) return;
 
+        // 首页默认 banner-mode，header 悬浮
         document.body.classList.add('banner-mode');
-        document.body.classList.add('banner-locked');   // ★ 锁屏
 
         resetBannerAnimation();
 
@@ -479,12 +487,13 @@
         var index = 0;
         el.innerHTML = '<span class="cursor"></span>';
 
-        var timer = setInterval(function() {
+        bannerTypewriterTimer = setInterval(function() {
             if (index < text.length) {
                 el.innerHTML = text.substring(0, index + 1) + '<span class="cursor"></span>';
                 index++;
             } else {
-                clearInterval(timer);
+                clearInterval(bannerTypewriterTimer);
+                bannerTypewriterTimer = null;
                 setTimeout(function() {
                     el.innerHTML = text;
                 }, 400);
@@ -492,7 +501,9 @@
         }, 120);
     }
 
-    // ========== 首页渲染 ==========
+    // ============================================================
+    // 首页渲染
+    // ============================================================
     function buildEssayCard(data) {
         if (!data) {
             return '<div class="essay-cell essay-card"><div class="essay-text essay-empty">...</div></div>';
@@ -550,7 +561,9 @@
         }
     }
 
-    // ========== 随笔页面 ==========
+    // ============================================================
+    // 随笔页面
+    // ============================================================
     async function renderSuibiList() {
         var list = await DB.getAll('suibi', { orderBy: 'id' });
         var container = document.getElementById('suibiList');
@@ -574,7 +587,9 @@
         container.innerHTML = html;
     }
 
-    // ========== 杂记页面 ==========
+    // ============================================================
+    // 杂记页面
+    // ============================================================
     var _currentZajiCategory = null;
 
     async function renderZajiPage() {
@@ -667,7 +682,9 @@
         if (contentEl) contentEl.innerHTML = '<p>' + (item.content || '').replace(/\n/g, '</p><p>') + '</p>';
     }
 
-    // ========== 闲话 ==========
+    // ============================================================
+    // 闲话
+    // ============================================================
     async function renderXianhua() {
         var list = await DB.getAll('xianhua');
         var content = list.length > 0 ? (list[0].content || '') : '';
@@ -682,7 +699,9 @@
         container.innerHTML = html;
     }
 
-    // ========== 初始化 ==========
+    // ============================================================
+    // 初始化
+    // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         initBanner();
         initHeaderScroll();
