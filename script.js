@@ -1,4 +1,4 @@
-// script.js —— 须臾之间 前端逻辑（已修复Banner滚动失效）
+// script.js —— 须臾之间 前端逻辑【修复step0‑7动画乱序】
 (function() {
     var DB = window.DB;
     // ============================================================
@@ -112,7 +112,7 @@
     var bannerCurrentStep = 0;
     var BANNER_CONFIG = {
         imageUrl: 'images/wallhaven-qro5vq.jpg',
-        imgW: 1920,        // 默认值，加载后被覆盖
+        imgW: 1920,
         imgH: 1080,
         cols: 6,
         rows: 4,
@@ -144,6 +144,7 @@
         fixedFragments: {},
         fixedRevealed: {},
         wheelLock: false,
+        processingStep: false, // 新增：step渲染互斥锁，防止并发调用applyStep
         autoPlayTimer: null,
         autoStartTimer: null,
         autoResumeTimer: null,
@@ -153,7 +154,7 @@
         rainStarted: false,
         rainRAF: null,
         rainDrops: [],
-        imageReady: false // 新增：图片资源是否加载完成标记
+        imageReady: false
     };
     function initBannerFragments() {
         var banner = document.getElementById('banner');
@@ -167,9 +168,7 @@
         var COLS = BANNER_CONFIG.cols;
         var ROWS = BANNER_CONFIG.rows;
         var TOTAL = COLS * ROWS;
-        // ============================================================
-        // ★ 计算图片按 cover 规则在 banner 中的实际绘制矩形
-        // ============================================================
+
         function computeCoverRect() {
             var vw = window.innerWidth;
             var vh = window.innerHeight;
@@ -190,10 +189,8 @@
             el.style.setProperty('--dx', (Math.random() * rg.offset * 2 - rg.offset).toFixed(1) + 'px');
             el.style.setProperty('--dy', (Math.random() * rg.offset * 2 - rg.offset).toFixed(1) + 'px');
             el.style.setProperty('--rot', (Math.random() * rg.rotate * 2 - rg.rotate).toFixed(1) + 'deg');
-            el.style.setProperty('--scale',
-                (rg.scaleMin + Math.random() * (rg.scaleMax - rg.scaleMin)).toFixed(2));
-            el.style.setProperty('--blur',
-                (rg.blurMin + Math.random() * (rg.blurMax - rg.blurMin)).toFixed(1) + 'px');
+            el.style.setProperty('--scale', (rg.scaleMin + Math.random() * (rg.scaleMax - rg.scaleMin)).toFixed(2));
+            el.style.setProperty('--blur', (rg.blurMin + Math.random() * (rg.blurMax - rg.blurMin)).toFixed(1) + 'px');
         }
         function createFixedFragments() {
             var vw = window.innerWidth;
@@ -309,8 +306,14 @@
                 }
             }, 120);
         }
+
+        // ========== applyStep：只渲染单个step，互斥锁保护 ==========
         function applyStep(step) {
+            if (bannerState.processingStep) return;
+            bannerState.processingStep = true;
+            console.log('[banner] applyStep >>', step); //调试打印step序列
             bannerCurrentStep = step;
+
             if (step === 7) {
                 fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                 fixedLayer.style.opacity = '0';
@@ -327,6 +330,7 @@
                     updateHeaderHeight();
                     document.body.classList.remove('banner-locked');
                     startTypewriter();
+                    bannerState.processingStep = false;
                 }, 800);
                 return;
             }
@@ -343,6 +347,7 @@
                 if (o0) o0.classList.remove('show');
                 var h0 = document.getElementById('bannerScrollHint');
                 if (h0) h0.classList.remove('hide');
+                bannerState.processingStep = false;
                 return;
             }
             if (step === 1) {
@@ -353,9 +358,7 @@
                 clearRandomFragmentsInstant();
                 hideAllFixed();
                 spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
-                return;
-            }
-            if (step === 2) {
+            } else if (step === 2) {
                 stopRain();
                 fullLayer.classList.remove('zoom');
                 fullLayer.classList.remove('show');
@@ -364,9 +367,7 @@
                 hideAllFixed();
                 spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
                 spawnRandomFragments(BANNER_CONFIG.randomStage2Count);
-                return;
-            }
-            if (step === 3) {
+            } else if (step === 3) {
                 stopRain();
                 fullLayer.classList.remove('zoom');
                 fullLayer.classList.remove('show');
@@ -374,27 +375,29 @@
                 clearRandomFragmentsInstant();
                 hideAllFixed();
                 appendRandomFixed(BANNER_CONFIG.fixedStageCounts[3]);
-                return;
-            }
-            if (step === 4) { appendRandomFixed(BANNER_CONFIG.fixedStageCounts[4]); return; }
-            if (step === 5) { appendRandomFixed(BANNER_CONFIG.fixedStageCounts[5]); return; }
-            if (step === 6) {
+            } else if (step === 4) {
+                appendRandomFixed(BANNER_CONFIG.fixedStageCounts[4]);
+            } else if (step === 5) {
+                appendRandomFixed(BANNER_CONFIG.fixedStageCounts[5]);
+            } else if (step === 6) {
                 appendRest();
                 setTimeout(function() {
                     fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                     fixedLayer.style.opacity = '0';
                     fullLayer.classList.add('show');
+                    bannerState.processingStep = false;
                 }, 800);
                 return;
             }
+            bannerState.processingStep = false;
         }
+
+        // ========= 修复：replayToStep 删除同步for循环，直接渲染目标step =========
         function replayToStep(target) {
-            stopRain();
-            fullLayer.classList.remove('zoom');
-            fullLayer.classList.remove('show');
-            fixedLayer.style.opacity = '1';
-            clearRandomFragmentsInstant();
-            hideAllFixed();
+            stopAutoPlay();
+            if (bannerState.autoResumeTimer) { clearTimeout(bannerState.autoResumeTimer); bannerState.autoResumeTimer = null; }
+            if (bannerState.autoStartTimer) { clearTimeout(bannerState.autoStartTimer); bannerState.autoStartTimer = null; }
+
             if (target < 7) {
                 if (siteHeader) siteHeader.classList.remove('visible');
                 document.body.classList.add('banner-locked');
@@ -406,33 +409,10 @@
                 var txt = document.getElementById('bannerText');
                 if (txt) txt.innerHTML = '';
             }
-            for (var s = 1; s <= target; s++) {
-                if (s === 1) spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
-                if (s === 2) {
-                    clearRandomFragmentsInstant();
-                    spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
-                    spawnRandomFragments(BANNER_CONFIG.randomStage2Count);
-                }
-                if (s === 3) {
-                    clearRandomFragmentsInstant();
-                    hideAllFixed();
-                    appendRandomFixed(BANNER_CONFIG.fixedStageCounts[3]);
-                }
-                if (s === 4) appendRandomFixed(BANNER_CONFIG.fixedStageCounts[4]);
-                if (s === 5) appendRandomFixed(BANNER_CONFIG.fixedStageCounts[5]);
-                if (s === 6) {
-                    appendRest();
-                    fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
-                    fixedLayer.style.opacity = '0';
-                    fullLayer.classList.add('show');
-                }
-                if (s === 7) {
-                    applyStep(7);
-                    return;
-                }
-            }
-            bannerCurrentStep = target;
+            applyStep(target);
         }
+
+        // =========修复：自动播放改用递归setTimeout，代替setInterval，防止后台tab跳步=========
         function startAutoPlay() {
             if (bannerState.autoPlaying || bannerState.autoFinished) return;
             if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
@@ -440,7 +420,8 @@
                 return;
             }
             bannerState.autoPlaying = true;
-            bannerState.autoPlayTimer = setInterval(function() {
+            function autoNext() {
+                if (!bannerState.autoPlaying) return;
                 if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
                     stopAutoPlay();
                     bannerState.autoFinished = true;
@@ -448,12 +429,14 @@
                 }
                 bannerCurrentStep++;
                 applyStep(bannerCurrentStep);
-            }, BANNER_CONFIG.autoInterval);
+                bannerState.autoPlayTimer = setTimeout(autoNext, BANNER_CONFIG.autoInterval);
+            }
+            bannerState.autoPlayTimer = setTimeout(autoNext, BANNER_CONFIG.autoInterval);
         }
         function stopAutoPlay() {
             bannerState.autoPlaying = false;
             if (bannerState.autoPlayTimer) {
-                clearInterval(bannerState.autoPlayTimer);
+                clearTimeout(bannerState.autoPlayTimer);
                 bannerState.autoPlayTimer = null;
             }
         }
@@ -472,43 +455,41 @@
                 startAutoPlay();
             }, BANNER_CONFIG.autoResumeDelay);
         }
+
         function handleUserScroll(direction) {
             stopAutoPlay();
-            if (bannerState.autoResumeTimer) {
-                clearTimeout(bannerState.autoResumeTimer);
-                bannerState.autoResumeTimer = null;
-            }
-            if (bannerState.autoStartTimer) {
-                clearTimeout(bannerState.autoStartTimer);
-                bannerState.autoStartTimer = null;
-            }
-            if (bannerState.wheelLock) return;
+            if (bannerState.autoResumeTimer) { clearTimeout(bannerState.autoResumeTimer); bannerState.autoResumeTimer = null; }
+            if (bannerState.autoStartTimer) { clearTimeout(bannerState.autoStartTimer); bannerState.autoStartTimer = null; }
+            if (bannerState.wheelLock || bannerState.processingStep) return;
+
             if (direction > 0) {
                 if (bannerCurrentStep >= 7) return;
                 bannerState.wheelLock = true;
                 bannerCurrentStep++;
                 applyStep(bannerCurrentStep);
-                setTimeout(function() { bannerState.wheelLock = false; }, 550); // 修改锁时间700→550
+                setTimeout(function() { bannerState.wheelLock = false; }, 550);
             } else if (direction < 0) {
                 if (bannerCurrentStep <= 0) return;
                 bannerState.wheelLock = true;
                 bannerCurrentStep--;
                 replayToStep(bannerCurrentStep);
-                setTimeout(function() { bannerState.wheelLock = false; }, 550); // 修改锁时间700→550
+                setTimeout(function() { bannerState.wheelLock = false; }, 550);
             }
             if (bannerCurrentStep < BANNER_CONFIG.autoEndStep) {
                 bannerState.autoFinished = false;
             }
             scheduleAutoResume();
         }
+
         window.addEventListener('wheel', function(e) {
             var homeActive = document.getElementById('page-home').classList.contains('active');
             if (!homeActive) return;
-            if (!bannerState.imageReady) return; // 图片未就绪禁止滚轮
+            if (!bannerState.imageReady) return;
             if (bannerCurrentStep >= 7) return;
             e.preventDefault();
             handleUserScroll(e.deltaY);
         }, { passive: false });
+
         var touchStartY = 0;
         window.addEventListener('touchstart', function(e) {
             touchStartY = e.touches[0].clientY;
@@ -516,14 +497,15 @@
         window.addEventListener('touchend', function(e) {
             var homeActive = document.getElementById('page-home').classList.contains('active');
             if (!homeActive) return;
-            if (!bannerState.imageReady) return; //图片未就绪禁止触摸
-            if (bannerState.wheelLock) return; //增加锁保护
+            if (!bannerState.imageReady) return;
+            if (bannerState.wheelLock || bannerState.processingStep) return;
             if (bannerCurrentStep >= 7) return;
             var dy = touchStartY - e.changedTouches[0].clientY;
             if (dy > 50) handleUserScroll(1);
             else if (dy < -50) handleUserScroll(-1);
         }, { passive: true });
-        // 下雨
+
+        //下雨
         function startRain() {
             if (bannerState.rainStarted) return;
             bannerState.rainStarted = true;
@@ -538,10 +520,8 @@
                 bannerState.rainDrops.push({
                     x: Math.random() * rainCanvas.width,
                     y: Math.random() * rainCanvas.height,
-                    len: BANNER_CONFIG.rainLengthMin +
-                         Math.random() * (BANNER_CONFIG.rainLengthMax - BANNER_CONFIG.rainLengthMin),
-                    speed: BANNER_CONFIG.rainSpeedMin +
-                           Math.random() * (BANNER_CONFIG.rainSpeedMax - BANNER_CONFIG.rainSpeedMin),
+                    len: BANNER_CONFIG.rainLengthMin + Math.random() * (BANNER_CONFIG.rainLengthMax - BANNER_CONFIG.rainLengthMin),
+                    speed: BANNER_CONFIG.rainSpeedMin + Math.random() * (BANNER_CONFIG.rainSpeedMax - BANNER_CONFIG.rainSpeedMin),
                     alpha: 0.18 + Math.random() * 0.35
                 });
             }
@@ -583,26 +563,25 @@
             ctx.clearRect(0, 0, rainCanvas.width, rainCanvas.height);
         }
 
-        //绑定banner按钮点击事件
         var bannerBtn = document.getElementById('bannerBtn');
         if(bannerBtn){
             bannerBtn.onclick = function(){
-                if(bannerState.wheelLock || !bannerState.imageReady || bannerCurrentStep >=7) return;
+                if(bannerState.wheelLock || bannerState.processingStep || !bannerState.imageReady || bannerCurrentStep >=7) return;
                 handleUserScroll(1);
             }
         }
 
-        // ============================================================
-        // 初始化：先预加载图片，拿到原始宽高再开始
-        // ============================================================
+        //图片预加载
         var img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = function() {
             BANNER_CONFIG.imgW = img.naturalWidth;
             BANNER_CONFIG.imgH = img.naturalHeight;
             createFixedFragments();
-            bannerState.imageReady = true; //标记图片就绪
-            // 移动端：跳过动画，直接显示完整 Banner
+            bannerState.imageReady = true;
+
+            applyStep(0); //【关键】强制初始化渲染step0，内存变量与DOM画面对齐
+
             if (window.innerWidth <= 768) {
                 fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                 fullLayer.classList.add('show');
@@ -619,7 +598,6 @@
                 bannerState.autoFinished = true;
                 return;
             }
-            // 桌面端：正常走 7 阶段动画
             document.body.classList.add('banner-locked');
             bannerState.autoStartTimer = setTimeout(function() {
                 bannerState.autoStartTimer = null;
@@ -628,16 +606,14 @@
         };
         img.onerror = function() {
             console.error('Banner 图片加载失败：', BANNER_CONFIG.imageUrl);
-            //图片加载失败兜底，直接完成banner，防止卡死
             bannerState.imageReady = true;
             bannerCurrentStep =7;
             applyStep(7);
         };
         img.src = BANNER_CONFIG.imageUrl;
     }
-    // ============================================================
-    // 首页渲染
-    // ============================================================
+
+    //首页渲染
     function buildEssayCard(data) {
         if (!data) {
             return '<div class="essay-cell essay-card"><div class="essay-text essay-empty">...</div></div>';
@@ -690,9 +666,7 @@
             noteContainer.innerHTML = html2;
         }
     }
-    // ============================================================
-    // 随笔页面
-    // ============================================================
+    //随笔页面
     async function renderSuibiList() {
         var list = await DB.getAll('suibi', { orderBy: 'id' });
         var container = document.getElementById('suibiList');
@@ -713,9 +687,7 @@
         }
         container.innerHTML = html;
     }
-    // ============================================================
-    // 杂记页面
-    // ============================================================
+    //杂记页面
     var _currentZajiCategory = null;
     async function renderZajiPage() {
         var list = await DB.getAll('zaji', { orderBy: 'id' });
@@ -794,9 +766,7 @@
         if (dateEl) dateEl.textContent = item.date;
         if (contentEl) contentEl.innerHTML = '<p>' + (item.content || '').replace(/\n/g, '</p><p>') + '</p>';
     }
-    // ============================================================
-    // 闲话
-    // ============================================================
+    //闲话
     async function renderXianhua() {
         var list = await DB.getAll('xianhua');
         var content = list.length > 0 ? (list[0].content || '') : '';
@@ -810,9 +780,7 @@
         }
         container.innerHTML = html;
     }
-    // ============================================================
-    // 初始化
-    // ============================================================
+    //初始化
     document.addEventListener('DOMContentLoaded', function() {
         initBannerFragments();
         renderHome();
