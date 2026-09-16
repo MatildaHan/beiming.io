@@ -3,16 +3,14 @@
     var DB = window.DB;
 
     // ============================================================
-    // 站点信息
+    // 站点信息（写死，不请求数据库）
     // ============================================================
-    var _siteCache = null;
-async function getSite() {
- 
-    return {
-        site_name: '须臾之间',
-        site_desc: '寄蜉蝣于天地，渺沧海之一粟'
-    };
-}
+    async function getSite() {
+        return {
+            site_name: '须臾之间',
+            site_desc: '寄蜉蝣于天地，渺沧海之一粟'
+        };
+    }
 
     // ============================================================
     // 页面导航
@@ -36,10 +34,9 @@ async function getSite() {
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
-        // ★ 切换 header 模式
+        // 切换 header 模式
         var siteHeader = document.getElementById('siteHeader');
         if (pageId === 'page-home') {
-            // 首页：悬浮在 Banner 内
             document.body.classList.add('banner-mode');
             if (bannerCurrentStep < 7) {
                 if (siteHeader) siteHeader.classList.remove('visible');
@@ -47,19 +44,17 @@ async function getSite() {
                 if (siteHeader) siteHeader.classList.add('visible');
             }
         } else {
-            // 其它页面：独立高度 80px，header 一直显示
             document.body.classList.remove('banner-mode');
             if (siteHeader) siteHeader.classList.add('visible');
         }
 
-        // ★ 锁屏逻辑
+        // 锁屏逻辑
         if (pageId === 'page-home' && bannerCurrentStep < 7) {
             document.body.classList.add('banner-locked');
         } else {
             document.body.classList.remove('banner-locked');
         }
 
-        // 重新计算 header 高度
         updateHeaderHeight();
 
         if (pageId === 'page-home') renderHome();
@@ -132,7 +127,9 @@ async function getSite() {
     var bannerCurrentStep = 0;
 
     var BANNER_CONFIG = {
-        imageUrl: 'images/wallhaven-qro5vq.jpg',    // ★ 换成你的图片路径
+        imageUrl: 'images/wallhaven-qro5vq.jpg',
+        imgW: 1920,        // 默认值，加载后被覆盖
+        imgH: 1080,
         cols: 6,
         rows: 4,
         randomStage1Count: 4,
@@ -185,12 +182,32 @@ async function getSite() {
 
         if (!banner || !randomLayer || !fixedLayer) return;
 
-        // ★ 首页默认进入 banner-mode
         document.body.classList.add('banner-mode');
 
         var COLS = BANNER_CONFIG.cols;
         var ROWS = BANNER_CONFIG.rows;
         var TOTAL = COLS * ROWS;
+
+        // ============================================================
+        // ★ 计算图片按 cover 规则在 banner 中的实际绘制矩形
+        // ============================================================
+        function computeCoverRect() {
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+            var imgW = BANNER_CONFIG.imgW;
+            var imgH = BANNER_CONFIG.imgH;
+
+            var scale = Math.max(vw / imgW, vh / imgH);
+            var drawW = imgW * scale;
+            var drawH = imgH * scale;
+
+            return {
+                width: drawW,
+                height: drawH,
+                offsetX: (vw - drawW) / 2,
+                offsetY: (vh - drawH) / 2
+            };
+        }
 
         function setRandomState(el) {
             var rg = BANNER_CONFIG.random;
@@ -208,23 +225,24 @@ async function getSite() {
             var vh = window.innerHeight;
             var cellW = vw / COLS;
             var cellH = vh / ROWS;
+            var cover = computeCoverRect();
 
             var id = 1;
             for (var r = 0; r < ROWS; r++) {
                 for (var c = 0; c < COLS; c++) {
-                    var x = c * cellW;
-                    var y = r * cellH;
-
                     var el = document.createElement('div');
                     el.className = 'fixed-fragment';
                     el.dataset.id = id;
                     el.style.width = cellW + 'px';
                     el.style.height = cellH + 'px';
-                    el.style.left = x + 'px';
-                    el.style.top = y + 'px';
+                    el.style.left = (c * cellW) + 'px';
+                    el.style.top = (r * cellH) + 'px';
+
                     el.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
-                    el.style.backgroundSize = vw + 'px ' + vh + 'px';
-                    el.style.backgroundPosition = '-' + x + 'px -' + y + 'px';
+                    el.style.backgroundSize = cover.width + 'px ' + cover.height + 'px';
+                    var bgX = c * cellW - cover.offsetX;
+                    var bgY = r * cellH - cover.offsetY;
+                    el.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
 
                     fixedLayer.appendChild(el);
                     bannerState.fixedFragments[id] = el;
@@ -238,25 +256,26 @@ async function getSite() {
             var vh = window.innerHeight;
             var cellW = vw / COLS;
             var cellH = vh / ROWS;
+            var cover = computeCoverRect();
 
             for (var i = 0; i < count; i++) {
                 var c = Math.floor(Math.random() * COLS);
                 var r = Math.floor(Math.random() * ROWS);
-                var x = c * cellW;
-                var y = r * cellH;
 
                 var el = document.createElement('div');
                 el.className = 'random-fragment';
                 el.style.width = cellW + 'px';
                 el.style.height = cellH + 'px';
-                el.style.left = x + 'px';
-                el.style.top = y + 'px';
+                el.style.left = (c * cellW) + 'px';
+                el.style.top = (r * cellH) + 'px';
+
                 el.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
-                el.style.backgroundSize = vw + 'px ' + vh + 'px';
-                el.style.backgroundPosition = '-' + x + 'px -' + y + 'px';
+                el.style.backgroundSize = cover.width + 'px ' + cover.height + 'px';
+                var bgX = c * cellW - cover.offsetX;
+                var bgY = r * cellH - cover.offsetY;
+                el.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
 
                 setRandomState(el);
-
                 randomLayer.appendChild(el);
                 bannerState.randomFragments.push(el);
 
@@ -545,7 +564,6 @@ async function getSite() {
             scheduleAutoResume();
         }
 
-        // 滚轮 / 触摸
         window.addEventListener('wheel', function(e) {
             var homeActive = document.getElementById('page-home').classList.contains('active');
             if (!homeActive) return;
@@ -637,38 +655,49 @@ async function getSite() {
         }
 
         // ============================================================
-        // 初始化
+        // 初始化：先预加载图片，拿到原始宽高再开始
         // ============================================================
-        createFixedFragments();
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+            BANNER_CONFIG.imgW = img.naturalWidth;
+            BANNER_CONFIG.imgH = img.naturalHeight;
 
-        // ★ 移动端（≤768px）：跳过动画，直接显示完整 Banner
-        if (window.innerWidth <= 768) {
-            fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
-            fullLayer.classList.add('show');
-            fullLayer.classList.add('zoom');
+            createFixedFragments();
 
-            var overlay = document.getElementById('bannerOverlay');
-            if (overlay) overlay.classList.add('show');
-            var hint = document.getElementById('bannerScrollHint');
-            if (hint) hint.classList.add('hide');
+            // 移动端：跳过动画，直接显示完整 Banner
+            if (window.innerWidth <= 768) {
+                fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                fullLayer.classList.add('show');
+                fullLayer.classList.add('zoom');
 
-            if (siteHeader) siteHeader.classList.add('visible');
-            updateHeaderHeight();
-            document.body.classList.remove('banner-locked');
-            startTypewriter();
+                var overlay = document.getElementById('bannerOverlay');
+                if (overlay) overlay.classList.add('show');
+                var hint = document.getElementById('bannerScrollHint');
+                if (hint) hint.classList.add('hide');
 
-            bannerCurrentStep = 7;
-            bannerState.autoFinished = true;
-            return;
-        }
+                if (siteHeader) siteHeader.classList.add('visible');
+                updateHeaderHeight();
+                document.body.classList.remove('banner-locked');
+                startTypewriter();
 
-        // 桌面端：正常走 7 阶段动画
-        document.body.classList.add('banner-locked');
+                bannerCurrentStep = 7;
+                bannerState.autoFinished = true;
+                return;
+            }
 
-        bannerState.autoStartTimer = setTimeout(function() {
-            bannerState.autoStartTimer = null;
-            startAutoPlay();
-        }, BANNER_CONFIG.autoStartDelay);
+            // 桌面端：正常走 7 阶段动画
+            document.body.classList.add('banner-locked');
+
+            bannerState.autoStartTimer = setTimeout(function() {
+                bannerState.autoStartTimer = null;
+                startAutoPlay();
+            }, BANNER_CONFIG.autoStartDelay);
+        };
+        img.onerror = function() {
+            console.error('Banner 图片加载失败：', BANNER_CONFIG.imageUrl);
+        };
+        img.src = BANNER_CONFIG.imageUrl;
     }
 
     // ============================================================
