@@ -38,6 +38,19 @@ a {
     text-decoration: none;
     color: inherit;
 }
+/* ============================================================
+   首页滚出 Banner 后：header 实心背景 + 不遮挡下方内容
+   ============================================================ */
+body.banner-mode.scrolled .site-header {
+    background: rgba(12, 10, 9, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
+}
+
+body.banner-mode.scrolled .home-content {
+    padding-top: 50px;
+}
 
 /* ============================================================
    ★ 顶部导航：所有页面统一 50px 高
