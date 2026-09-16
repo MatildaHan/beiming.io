@@ -1,9 +1,9 @@
-// script.js —— 须臾之间
+// script.js —— 须臾之间 前端逻辑
 (function() {
     var DB = window.DB;
 
     // ============================================================
-    // 站点信息
+    // 站点信息（写死，不请求数据库）
     // ============================================================
     async function getSite() {
         return {
@@ -34,6 +34,7 @@
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
+        // 切换 header 模式
         var siteHeader = document.getElementById('siteHeader');
         if (pageId === 'page-home') {
             document.body.classList.add('banner-mode');
@@ -44,10 +45,10 @@
             }
         } else {
             document.body.classList.remove('banner-mode');
-            document.body.classList.remove('scrolled');
             if (siteHeader) siteHeader.classList.add('visible');
         }
 
+        // 锁屏逻辑
         if (pageId === 'page-home' && bannerCurrentStep < 7) {
             document.body.classList.add('banner-locked');
         } else {
@@ -121,74 +122,50 @@
     }
 
     // ============================================================
-    // 首页滚出 Banner 后 header 加实心背景
-    // ============================================================
-    function initHeaderScroll() {
-        var banner = document.getElementById('banner');
-        if (!banner) return;
-
-        window.addEventListener('scroll', function() {
-            if (!document.body.classList.contains('banner-mode')) return;
-
-            var bannerBottom = banner.offsetTop + banner.offsetHeight;
-            if (window.scrollY >= bannerBottom - 50) {
-                document.body.classList.add('scrolled');
-            } else {
-                document.body.classList.remove('scrolled');
-            }
-        }, { passive: true });
-    }
-
-    // ============================================================
     // Banner 碎片拼合
     // ============================================================
     var bannerCurrentStep = 0;
 
     var BANNER_CONFIG = {
         imageUrl: 'images/wallhaven-qro5vq.jpg',
-        imgW: 1920,
+        imgW: 1920,        // 默认值，加载后被覆盖
         imgH: 1080,
         cols: 6,
         rows: 4,
-
-        // 阶段 1、2 随机碎片数量
         randomStage1Count: 4,
         randomStage2Count: 6,
-
-        // 阶段 3~6 每批新增固定碎片数量
-        fixedStageAdd: {
-            3: 6,
-            4: 6,
-            5: 6,
-            6: 6
-        },
-
-        // 随机碎片参数
+        fixedStageCounts: { 3: 6, 4: 6, 5: 6, 6: 0 },
         random: {
             offset: 260,
             rotate: 25,
+            scaleMin: 0.55,
+            scaleMax: 1.05,
             blurMin: 6,
-            blurMax: 14,
-            scaleMin: 1.1,
-            scaleMax: 1.4
+            blurMax: 14
         },
-
         rainAngle: -15,
         rainCount: 80,
         rainSpeedMin: 8,
         rainSpeedMax: 16,
         rainWidth: 2.2,
         rainLengthMin: 18,
-        rainLengthMax: 34
+        rainLengthMax: 34,
+        autoStartDelay: 2000,
+        autoInterval: 1500,
+        autoResumeDelay: 2000,
+        autoEndStep: 7
     };
 
     var bannerState = {
-        ready: false,
         randomFragments: [],
         fixedFragments: {},
         fixedRevealed: {},
-        shuffledIds: null,
-        lastWheelTime: 0,
+        wheelLock: false,
+        autoPlayTimer: null,
+        autoStartTimer: null,
+        autoResumeTimer: null,
+        autoPlaying: false,
+        autoFinished: false,
         typewriterDone: false,
         rainStarted: false,
         rainRAF: null,
@@ -211,6 +188,9 @@
         var ROWS = BANNER_CONFIG.rows;
         var TOTAL = COLS * ROWS;
 
+        // ============================================================
+        // ★ 计算图片按 cover 规则在 banner 中的实际绘制矩形
+        // ============================================================
         function computeCoverRect() {
             var vw = window.innerWidth;
             var vh = window.innerHeight;
@@ -234,13 +214,12 @@
             el.style.setProperty('--dx', (Math.random() * rg.offset * 2 - rg.offset).toFixed(1) + 'px');
             el.style.setProperty('--dy', (Math.random() * rg.offset * 2 - rg.offset).toFixed(1) + 'px');
             el.style.setProperty('--rot', (Math.random() * rg.rotate * 2 - rg.rotate).toFixed(1) + 'deg');
-            var s = rg.scaleMin + Math.random() * (rg.scaleMax - rg.scaleMin);
-            el.style.setProperty('--scale', s.toFixed(2));
+            el.style.setProperty('--scale',
+                (rg.scaleMin + Math.random() * (rg.scaleMax - rg.scaleMin)).toFixed(2));
             el.style.setProperty('--blur',
                 (rg.blurMin + Math.random() * (rg.blurMax - rg.blurMin)).toFixed(1) + 'px');
         }
 
-        // 创建固定碎片（24 块，位置正确，初始 opacity:0）
         function createFixedFragments() {
             var vw = window.innerWidth;
             var vh = window.innerHeight;
@@ -248,15 +227,12 @@
             var cellH = vh / ROWS;
             var cover = computeCoverRect();
 
-            fixedLayer.innerHTML = '';
-            bannerState.fixedFragments = {};
-
             var id = 1;
             for (var r = 0; r < ROWS; r++) {
                 for (var c = 0; c < COLS; c++) {
                     var el = document.createElement('div');
                     el.className = 'fixed-fragment';
-                    el.dataset.id = String(id);
+                    el.dataset.id = id;
                     el.style.width = cellW + 'px';
                     el.style.height = cellH + 'px';
                     el.style.left = (c * cellW) + 'px';
@@ -264,25 +240,17 @@
 
                     el.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                     el.style.backgroundSize = cover.width + 'px ' + cover.height + 'px';
-                    el.style.backgroundPosition = (c * cellW - cover.offsetX) + 'px ' + (r * cellH - cover.offsetY) + 'px';
+                    var bgX = c * cellW - cover.offsetX;
+                    var bgY = r * cellH - cover.offsetY;
+                    el.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
 
                     fixedLayer.appendChild(el);
                     bannerState.fixedFragments[id] = el;
                     id++;
                 }
             }
-
-            // 一次性乱序 1~24
-            var ids = [];
-            for (var k = 1; k <= TOTAL; k++) ids.push(k);
-            for (var m = ids.length - 1; m > 0; m--) {
-                var j = Math.floor(Math.random() * (m + 1));
-                var t = ids[m]; ids[m] = ids[j]; ids[j] = t;
-            }
-            bannerState.shuffledIds = ids;
         }
 
-        // 创建随机碎片（随机位置、模糊、倾斜）
         function spawnRandomFragments(count) {
             var vw = window.innerWidth;
             var vh = window.innerHeight;
@@ -303,7 +271,9 @@
 
                 el.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                 el.style.backgroundSize = cover.width + 'px ' + cover.height + 'px';
-                el.style.backgroundPosition = (c * cellW - cover.offsetX) + 'px ' + (r * cellH - cover.offsetY) + 'px';
+                var bgX = c * cellW - cover.offsetX;
+                var bgY = r * cellH - cover.offsetY;
+                el.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
 
                 setRandomState(el);
                 randomLayer.appendChild(el);
@@ -317,7 +287,7 @@
             }
         }
 
-        function clearRandomFragments() {
+        function clearRandomFragmentsInstant() {
             for (var i = 0; i < bannerState.randomFragments.length; i++) {
                 var el = bannerState.randomFragments[i];
                 if (el.parentNode) el.parentNode.removeChild(el);
@@ -325,12 +295,36 @@
             bannerState.randomFragments = [];
         }
 
+        function appendRandomFixed(count) {
+            var pool = [];
+            for (var id = 1; id <= TOTAL; id++) {
+                if (!bannerState.fixedRevealed[id]) pool.push(id);
+            }
+            for (var i = pool.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                var t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+            }
+            var pick = pool.slice(0, count);
+            for (var k = 0; k < pick.length; k++) {
+                var id2 = pick[k];
+                bannerState.fixedRevealed[id2] = true;
+                bannerState.fixedFragments[id2].classList.add('show');
+            }
+        }
+
+        function appendRest() {
+            for (var id = 1; id <= TOTAL; id++) {
+                if (!bannerState.fixedRevealed[id]) {
+                    bannerState.fixedRevealed[id] = true;
+                    bannerState.fixedFragments[id].classList.add('show');
+                }
+            }
+        }
+
         function hideAllFixed() {
             for (var id = 1; id <= TOTAL; id++) {
-                var el = bannerState.fixedFragments[id];
-                if (!el) continue;
                 bannerState.fixedRevealed[id] = false;
-                el.classList.remove('show');
+                bannerState.fixedFragments[id].classList.remove('show');
             }
         }
 
@@ -357,21 +351,102 @@
             }, 120);
         }
 
-        // ============================================================
-        // 核心：从阶段 0 完整重放到 target
-        // ============================================================
-        function applyStep(target) {
-            bannerCurrentStep = target;
+        function applyStep(step) {
+            bannerCurrentStep = step;
 
-            // 1. 清空所有状态
+            if (step === 7) {
+                fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                fixedLayer.style.opacity = '0';
+                fullLayer.classList.add('show');
+                fullLayer.classList.add('zoom');
+                rainCanvas.classList.add('show');
+                startRain();
+
+                setTimeout(function() {
+                    var overlay = document.getElementById('bannerOverlay');
+                    if (overlay) overlay.classList.add('show');
+                    var hint = document.getElementById('bannerScrollHint');
+                    if (hint) hint.classList.add('hide');
+                    if (siteHeader) siteHeader.classList.add('visible');
+                    updateHeaderHeight();
+                    document.body.classList.remove('banner-locked');
+                    startTypewriter();
+                }, 800);
+                return;
+            }
+
+            if (step === 0) {
+                stopRain();
+                fullLayer.classList.remove('zoom');
+                fullLayer.classList.remove('show');
+                fixedLayer.style.opacity = '1';
+                clearRandomFragmentsInstant();
+                hideAllFixed();
+                if (siteHeader) siteHeader.classList.remove('visible');
+                document.body.classList.add('banner-locked');
+                var o0 = document.getElementById('bannerOverlay');
+                if (o0) o0.classList.remove('show');
+                var h0 = document.getElementById('bannerScrollHint');
+                if (h0) h0.classList.remove('hide');
+                return;
+            }
+
+            if (step === 1) {
+                stopRain();
+                fullLayer.classList.remove('zoom');
+                fullLayer.classList.remove('show');
+                fixedLayer.style.opacity = '1';
+                clearRandomFragmentsInstant();
+                hideAllFixed();
+                spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
+                return;
+            }
+
+            if (step === 2) {
+                stopRain();
+                fullLayer.classList.remove('zoom');
+                fullLayer.classList.remove('show');
+                fixedLayer.style.opacity = '1';
+                clearRandomFragmentsInstant();
+                hideAllFixed();
+                spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
+                spawnRandomFragments(BANNER_CONFIG.randomStage2Count);
+                return;
+            }
+
+            if (step === 3) {
+                stopRain();
+                fullLayer.classList.remove('zoom');
+                fullLayer.classList.remove('show');
+                fixedLayer.style.opacity = '1';
+                clearRandomFragmentsInstant();
+                hideAllFixed();
+                appendRandomFixed(BANNER_CONFIG.fixedStageCounts[3]);
+                return;
+            }
+
+            if (step === 4) { appendRandomFixed(BANNER_CONFIG.fixedStageCounts[4]); return; }
+            if (step === 5) { appendRandomFixed(BANNER_CONFIG.fixedStageCounts[5]); return; }
+
+            if (step === 6) {
+                appendRest();
+                setTimeout(function() {
+                    fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                    fixedLayer.style.opacity = '0';
+                    fullLayer.classList.add('show');
+                }, 800);
+                return;
+            }
+        }
+
+        function replayToStep(target) {
             stopRain();
             fullLayer.classList.remove('zoom');
             fullLayer.classList.remove('show');
             fixedLayer.style.opacity = '1';
-            clearRandomFragments();
+            clearRandomFragmentsInstant();
             hideAllFixed();
 
-            // 2. 非 7 阶段：隐藏 header + 锁屏 + 清文字
             if (target < 7) {
                 if (siteHeader) siteHeader.classList.remove('visible');
                 document.body.classList.add('banner-locked');
@@ -384,134 +459,133 @@
                 if (txt) txt.innerHTML = '';
             }
 
-            // 阶段 0：全黑
-            if (target === 0) return;
-
-            // 阶段 1：随机 4 块
-            if (target === 1) {
-                spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
-                return;
-            }
-
-            // 阶段 2：随机 4 + 6 块
-            if (target === 2) {
-                spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
-                spawnRandomFragments(BANNER_CONFIG.randomStage2Count);
-                return;
-            }
-
-            // 阶段 3~6：正确位置累积显示
-            if (target >= 3 && target <= 6) {
-                var ids = bannerState.shuffledIds;
-                if (!ids || ids.length < TOTAL) {
-                    var newIds = [];
-                    for (var k2 = 1; k2 <= TOTAL; k2++) newIds.push(k2);
-                    for (var m2 = newIds.length - 1; m2 > 0; m2--) {
-                        var j2 = Math.floor(Math.random() * (m2 + 1));
-                        var t2 = newIds[m2]; newIds[m2] = newIds[j2]; newIds[j2] = t2;
-                    }
-                    bannerState.shuffledIds = newIds;
-                    ids = newIds;
+            for (var s = 1; s <= target; s++) {
+                if (s === 1) spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
+                if (s === 2) {
+                    clearRandomFragmentsInstant();
+                    spawnRandomFragments(BANNER_CONFIG.randomStage1Count);
+                    spawnRandomFragments(BANNER_CONFIG.randomStage2Count);
                 }
-
-                var totalCount = 0;
-                var add = BANNER_CONFIG.fixedStageAdd;
-                for (var s = 3; s <= target; s++) {
-                    totalCount += add[s] || 0;
+                if (s === 3) {
+                    clearRandomFragmentsInstant();
+                    hideAllFixed();
+                    appendRandomFixed(BANNER_CONFIG.fixedStageCounts[3]);
                 }
-                if (totalCount > TOTAL) totalCount = TOTAL;
-
-                for (var idx = 0; idx < totalCount; idx++) {
-                    var id2 = ids[idx];
-                    var el2 = bannerState.fixedFragments[id2];
-                    if (!el2) continue;
-                    bannerState.fixedRevealed[id2] = true;
-                    el2.classList.add('show');
-                }
-            }
-
-            // 阶段 6：图片完整，显示完整图（90% 缩放）
-            if (target === 6) {
-                setTimeout(function() {
+                if (s === 4) appendRandomFixed(BANNER_CONFIG.fixedStageCounts[4]);
+                if (s === 5) appendRandomFixed(BANNER_CONFIG.fixedStageCounts[5]);
+                if (s === 6) {
+                    appendRest();
                     fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                     fixedLayer.style.opacity = '0';
-                    fullLayer.classList.add('show');   // .show = scale(0.9)
-                }, 700);
+                    fullLayer.classList.add('show');
+                }
+                if (s === 7) {
+                    applyStep(7);
+                    return;
+                }
+            }
+            bannerCurrentStep = target;
+        }
+
+        function startAutoPlay() {
+            if (bannerState.autoPlaying || bannerState.autoFinished) return;
+            if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
+                bannerState.autoFinished = true;
+                return;
+            }
+            bannerState.autoPlaying = true;
+
+            bannerState.autoPlayTimer = setInterval(function() {
+                if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
+                    stopAutoPlay();
+                    bannerState.autoFinished = true;
+                    return;
+                }
+                bannerCurrentStep++;
+                applyStep(bannerCurrentStep);
+            }, BANNER_CONFIG.autoInterval);
+        }
+
+        function stopAutoPlay() {
+            bannerState.autoPlaying = false;
+            if (bannerState.autoPlayTimer) {
+                clearInterval(bannerState.autoPlayTimer);
+                bannerState.autoPlayTimer = null;
+            }
+        }
+
+        function scheduleAutoResume() {
+            if (bannerState.autoResumeTimer) {
+                clearTimeout(bannerState.autoResumeTimer);
+                bannerState.autoResumeTimer = null;
+            }
+            if (bannerState.autoFinished) return;
+            if (bannerCurrentStep >= BANNER_CONFIG.autoEndStep) {
+                bannerState.autoFinished = true;
+                return;
+            }
+            bannerState.autoResumeTimer = setTimeout(function() {
+                bannerState.autoResumeTimer = null;
+                startAutoPlay();
+            }, BANNER_CONFIG.autoResumeDelay);
+        }
+
+        function handleUserScroll(direction) {
+            stopAutoPlay();
+            if (bannerState.autoResumeTimer) {
+                clearTimeout(bannerState.autoResumeTimer);
+                bannerState.autoResumeTimer = null;
+            }
+            if (bannerState.autoStartTimer) {
+                clearTimeout(bannerState.autoStartTimer);
+                bannerState.autoStartTimer = null;
             }
 
-            // 阶段 7：放大铺满 + 下雨 + 打字机 + 显示 header
-            if (target === 7) {
-                fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
-                fixedLayer.style.opacity = '0';
-                fullLayer.classList.add('show');
-                fullLayer.classList.add('zoom');      // .zoom = scale(1)
+            if (bannerState.wheelLock) return;
 
-                rainCanvas.classList.add('show');
-                startRain();
-
-                setTimeout(function() {
-                    var overlay2 = document.getElementById('bannerOverlay');
-                    if (overlay2) overlay2.classList.add('show');
-                    var hint2 = document.getElementById('bannerScrollHint');
-                    if (hint2) hint2.classList.add('hide');
-                    if (siteHeader) siteHeader.classList.add('visible');
-                    updateHeaderHeight();
-                    document.body.classList.remove('banner-locked');
-                    startTypewriter();
-                }, 800);
+            if (direction > 0) {
+                if (bannerCurrentStep >= 7) return;
+                bannerState.wheelLock = true;
+                bannerCurrentStep++;
+                applyStep(bannerCurrentStep);
+                setTimeout(function() { bannerState.wheelLock = false; }, 700);
+            } else if (direction < 0) {
+                if (bannerCurrentStep <= 0) return;
+                bannerState.wheelLock = true;
+                bannerCurrentStep--;
+                replayToStep(bannerCurrentStep);
+                setTimeout(function() { bannerState.wheelLock = false; }, 700);
             }
+
+            if (bannerCurrentStep < BANNER_CONFIG.autoEndStep) {
+                bannerState.autoFinished = false;
+            }
+
+            scheduleAutoResume();
         }
 
-        function nextStep() {
-            if (!bannerState.ready) return;
-            if (bannerCurrentStep >= 7) return;
-            bannerCurrentStep++;
-            applyStep(bannerCurrentStep);
-        }
-
-        function prevStep() {
-            if (!bannerState.ready) return;
-            if (bannerCurrentStep <= 0) return;
-            bannerCurrentStep--;
-            applyStep(bannerCurrentStep);
-        }
-
-        // ============================================================
-        // 滚轮监听（800ms 节流）
-        // ============================================================
         window.addEventListener('wheel', function(e) {
             var homeActive = document.getElementById('page-home').classList.contains('active');
             if (!homeActive) return;
-
-            // 阶段 7 后：页面滚动，但页面在顶部 + 向上滚 → 回退
-            if (bannerCurrentStep >= 7) {
-                if (e.deltaY < 0 && window.scrollY <= 5) {
-                    e.preventDefault();
-                    var now2 = Date.now();
-                    if (now2 - bannerState.lastWheelTime < 800) return;
-                    bannerState.lastWheelTime = now2;
-                    prevStep();
-                }
-                return;
-            }
-
-            // 阶段 0~6：拦截滚轮，控制 Banner
+            if (bannerCurrentStep >= 7) return;
             e.preventDefault();
-
-            var now = Date.now();
-            if (now - bannerState.lastWheelTime < 800) return;
-            bannerState.lastWheelTime = now;
-
-            if (e.deltaY > 0) {
-                nextStep();
-            } else if (e.deltaY < 0) {
-                prevStep();
-            }
+            handleUserScroll(e.deltaY);
         }, { passive: false });
 
-        // ============================================================
+        var touchStartY = 0;
+        window.addEventListener('touchstart', function(e) {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        window.addEventListener('touchend', function(e) {
+            var homeActive = document.getElementById('page-home').classList.contains('active');
+            if (!homeActive) return;
+            if (bannerCurrentStep >= 7) return;
+            var dy = touchStartY - e.changedTouches[0].clientY;
+            if (dy > 50) handleUserScroll(1);
+            else if (dy < -50) handleUserScroll(-1);
+        }, { passive: true });
+
         // 下雨
-        // ============================================================
         function startRain() {
             if (bannerState.rainStarted) return;
             bannerState.rainStarted = true;
@@ -581,7 +655,7 @@
         }
 
         // ============================================================
-        // 初始化
+        // 初始化：先预加载图片，拿到原始宽高再开始
         // ============================================================
         var img = new Image();
         img.crossOrigin = 'anonymous';
@@ -590,9 +664,8 @@
             BANNER_CONFIG.imgH = img.naturalHeight;
 
             createFixedFragments();
-            bannerState.ready = true;
 
-            // 移动端：直接显示完整 Banner
+            // 移动端：跳过动画，直接显示完整 Banner
             if (window.innerWidth <= 768) {
                 fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
                 fullLayer.classList.add('show');
@@ -609,19 +682,20 @@
                 startTypewriter();
 
                 bannerCurrentStep = 7;
+                bannerState.autoFinished = true;
                 return;
             }
 
+            // 桌面端：正常走 7 阶段动画
             document.body.classList.add('banner-locked');
-            // 阶段 0：不显示任何碎片，等待用户滚轮
+
+            bannerState.autoStartTimer = setTimeout(function() {
+                bannerState.autoStartTimer = null;
+                startAutoPlay();
+            }, BANNER_CONFIG.autoStartDelay);
         };
         img.onerror = function() {
             console.error('Banner 图片加载失败：', BANNER_CONFIG.imageUrl);
-            BANNER_CONFIG.imgW = 1920;
-            BANNER_CONFIG.imgH = 1080;
-            createFixedFragments();
-            bannerState.ready = true;
-            document.body.classList.add('banner-locked');
         };
         img.src = BANNER_CONFIG.imageUrl;
     }
@@ -829,7 +903,6 @@
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
         initBannerFragments();
-        initHeaderScroll();
         renderHome();
         updateHeaderHeight();
     });
