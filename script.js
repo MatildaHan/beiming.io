@@ -129,8 +129,261 @@
     }
 
     // ============================================================
-    // Banner 初始化
+    // Banner 初始化 —— 碎片拼图 + 滚轮分步动画
     // ============================================================
+    var BANNER_IMG = 'images/0916.jpg';
+    var FRAG_COLS = 6;
+    var FRAG_ROWS = 4;
+    var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS; // 24
+
+    var bannerStep = 0;          // 当前步骤 0-6
+    var bannerIntroDone = false; // 拼图动画是否已完成（完成后交还滚动权）
+    var bannerPieces = [];       // 24 个碎片元素
+    var bannerScatterTransform = []; // 每个碎片的随机散落 transform（缓存，保持一致）
+    var correctOrder = [];       // 步骤 2-5 拼图归位的随机顺序
+    var scatterOrder = [];       // 步骤 0-1 随机散落出现的顺序
+    var scatterShownCount = 0;
+    var correctedShownCount = 0;
+
+    function shuffleArray(arr) {
+        var a = arr.slice();
+        for (var i = a.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+        }
+        return a;
+    }
+    function randRange(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+    function randInt(min, max) {
+        return Math.floor(randRange(min, max + 1));
+    }
+
+    function buildBannerFragments() {
+        var wrap = document.getElementById('bannerFragments');
+        var bannerFull = document.getElementById('bannerFull');
+        if (!wrap || !bannerFull) return;
+
+        bannerFull.style.backgroundImage = 'url(' + BANNER_IMG + ')';
+        wrap.innerHTML = '';
+        bannerPieces = [];
+        bannerScatterTransform = [];
+
+        for (var row = 0; row < FRAG_ROWS; row++) {
+            for (var col = 0; col < FRAG_COLS; col++) {
+                var idx = row * FRAG_COLS + col;
+                var piece = document.createElement('div');
+                piece.className = 'banner-piece';
+                piece.style.left = (col / FRAG_COLS * 100) + '%';
+                piece.style.top = (row / FRAG_ROWS * 100) + '%';
+                piece.style.width = (100 / FRAG_COLS) + '%';
+                piece.style.height = (100 / FRAG_ROWS) + '%';
+                piece.style.backgroundImage = 'url(' + BANNER_IMG + ')';
+                piece.style.backgroundSize = (FRAG_COLS * 100) + '% ' + (FRAG_ROWS * 100) + '%';
+                piece.style.backgroundPosition =
+                    (col / (FRAG_COLS - 1) * 100) + '% ' + (row / (FRAG_ROWS - 1) * 100) + '%';
+                wrap.appendChild(piece);
+                bannerPieces[idx] = piece;
+
+                // 预生成随机散落效果，保证前后一致不跳变
+                bannerScatterTransform[idx] =
+                    'translate(' + randRange(-46, 46) + 'vw, ' + randRange(-42, 42) + 'vh) ' +
+                    'rotate(' + randRange(-35, 35) + 'deg) scale(' + randRange(0.85, 1.05) + ')';
+            }
+        }
+
+        correctOrder = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
+        scatterOrder = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
+    }
+
+    function setPieceScattered(idx) {
+        var piece = bannerPieces[idx];
+        if (!piece || piece.classList.contains('is-corrected')) return;
+        piece.style.transform = bannerScatterTransform[idx];
+        piece.classList.add('is-visible', 'is-scattered');
+    }
+
+    function setPieceCorrected(idx) {
+        var piece = bannerPieces[idx];
+        if (!piece) return;
+        piece.classList.remove('is-scattered');
+        piece.classList.add('is-visible', 'is-corrected');
+        piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
+    }
+
+    function uncorrectPiece(idx) {
+        var piece = bannerPieces[idx];
+        if (!piece) return;
+        piece.classList.remove('is-corrected', 'is-visible');
+        piece.style.transform = bannerScatterTransform[idx];
+    }
+
+    function showScattered(count) {
+        for (var i = 0; i < count; i++) setPieceScattered(scatterOrder[i]);
+    }
+    function showCorrected(count) {
+        for (var i = 0; i < count; i++) setPieceCorrected(correctOrder[i]);
+    }
+
+    function resetBannerAnimation() {
+        bannerStep = 0;
+        bannerIntroDone = false;
+        scatterShownCount = 0;
+        correctedShownCount = 0;
+        var frag = document.getElementById('bannerFragments');
+        var rain = document.getElementById('bannerRain');
+        var overlay = document.getElementById('bannerOverlay');
+        var bannerEl = document.getElementById('banner');
+        if (frag) frag.classList.remove('zoom-out', 'zoom-full');
+        if (rain) rain.classList.remove('rain-active');
+        if (overlay) overlay.classList.remove('show');
+        if (bannerEl) bannerEl.classList.remove('banner-revealed');
+
+        buildBannerFragments();
+        applyBannerStep(0);
+    }
+
+    function applyBannerStep(step) {
+        var frag = document.getElementById('bannerFragments');
+        var bannerEl = document.getElementById('banner');
+
+        // 往回滚出拼图阶段：把已归位的碎片还原
+        if (step < 2 && correctedShownCount > 0) {
+            for (var u = 0; u < correctedShownCount; u++) uncorrectPiece(correctOrder[u]);
+            correctedShownCount = 0;
+            if (frag) frag.classList.remove('zoom-out', 'zoom-full');
+            if (bannerEl) bannerEl.classList.remove('banner-revealed');
+        }
+
+        bannerStep = step;
+
+        if (step === 0) {
+            scatterShownCount = randInt(4, 8);
+            showScattered(scatterShownCount);
+        } else if (step === 1) {
+            scatterShownCount = Math.min(FRAG_TOTAL, scatterShownCount + randInt(3, 8));
+            showScattered(scatterShownCount);
+        } else if (step >= 2 && step <= 5) {
+            var newCount = (step - 1) * 6; // 6 / 12 / 18 / 24
+            if (newCount < correctedShownCount) {
+                for (var d = newCount; d < correctedShownCount; d++) uncorrectPiece(correctOrder[d]);
+            }
+            correctedShownCount = newCount;
+            showCorrected(correctedShownCount);
+            if (step === 5) {
+                if (frag) frag.classList.add('zoom-out');
+                if (bannerEl) bannerEl.classList.add('banner-revealed');
+            } else if (frag) {
+                frag.classList.remove('zoom-out', 'zoom-full');
+            }
+        } else if (step === 6) {
+            correctedShownCount = FRAG_TOTAL;
+            showCorrected(FRAG_TOTAL);
+            if (frag) {
+                frag.classList.remove('zoom-out');
+                frag.classList.add('zoom-full');
+            }
+            bannerIntroDone = true;
+            triggerBannerFinale();
+        }
+    }
+
+    function triggerBannerFinale() {
+        var rain = document.getElementById('bannerRain');
+        var overlay = document.getElementById('bannerOverlay');
+
+        // 缩放到 100% 铺满全屏后，出现向左倾斜的下雨效果
+        setTimeout(function() {
+            if (rain) {
+                buildRainDrops(rain);
+                rain.classList.add('rain-active');
+            }
+        }, 600);
+
+        // 下雨效果出现后，打字机文字浮现
+        setTimeout(function() {
+            if (overlay) overlay.classList.add('show');
+            startTypewriter();
+        }, 1500);
+    }
+
+    function buildRainDrops(rain) {
+        if (rain.childElementCount > 0) return; // 只生成一次
+        var count = 90;
+        var html = '';
+        for (var i = 0; i < count; i++) {
+            var left = randRange(-5, 105);
+            var height = randRange(50, 130);
+            var duration = randRange(0.9, 2.1);
+            var delay = randRange(0, 2.5);
+            html += '<span class="rain-drop" style="left:' + left + '%;height:' + height +
+                'px;animation-duration:' + duration + 's;animation-delay:' + delay + 's;"></span>';
+        }
+        rain.innerHTML = html;
+    }
+
+    // ============================================================
+    // 滚轮控制：拼图完成前拦截滚动，逐步推进 6 个阶段
+    // ============================================================
+    var bannerWheelAccum = 0;
+    var bannerWheelCooldown = false;
+    var BANNER_WHEEL_THRESHOLD = 55;
+    var BANNER_STEP_COOLDOWN = 750;
+
+    function isHomeActive() {
+        var home = document.getElementById('page-home');
+        return home && home.classList.contains('active');
+    }
+
+    function stepBanner(direction) {
+        var next = bannerStep + direction;
+        if (next < 0) next = 0;
+        if (next > 6) next = 6;
+        if (next === bannerStep) return;
+        bannerWheelCooldown = true;
+        applyBannerStep(next);
+        setTimeout(function() {
+            bannerWheelCooldown = false;
+        }, BANNER_STEP_COOLDOWN);
+    }
+
+    function onBannerWheel(e) {
+        if (bannerIntroDone) return; // 动画已完成，交还正常滚动
+        if (!isHomeActive()) return;
+        if (window.scrollY > 4) return; // 已滚出首屏，不再拦截
+
+        e.preventDefault();
+        if (bannerWheelCooldown) return;
+
+        bannerWheelAccum += e.deltaY;
+        if (Math.abs(bannerWheelAccum) >= BANNER_WHEEL_THRESHOLD) {
+            var dir = bannerWheelAccum > 0 ? 1 : -1;
+            bannerWheelAccum = 0;
+            stepBanner(dir);
+        }
+    }
+
+    // 触屏兼容：用触摸位移模拟滚轮
+    var bannerTouchStartY = null;
+    function onBannerTouchStart(e) {
+        if (bannerIntroDone || !isHomeActive() || window.scrollY > 4) return;
+        bannerTouchStartY = e.touches[0].clientY;
+    }
+    function onBannerTouchMove(e) {
+        if (bannerIntroDone || !isHomeActive() || window.scrollY > 4 || bannerTouchStartY === null) return;
+        e.preventDefault();
+        if (bannerWheelCooldown) return;
+        var dy = bannerTouchStartY - e.touches[0].clientY;
+        if (Math.abs(dy) >= 40) {
+            stepBanner(dy > 0 ? 1 : -1);
+            bannerTouchStartY = e.touches[0].clientY;
+        }
+    }
+    function onBannerTouchEnd() {
+        bannerTouchStartY = null;
+    }
+
     function initBanner() {
         var bannerFull = document.getElementById('bannerFull');
         if (!bannerFull) return;
@@ -138,11 +391,12 @@
         // 首页默认 banner-mode，header 悬浮
         document.body.classList.add('banner-mode');
 
-        // 设置 banner 图
-        bannerFull.style.backgroundImage = 'url(images/0916.jpg)';
+        resetBannerAnimation();
 
-        // 打字机
-        startTypewriter();
+        window.addEventListener('wheel', onBannerWheel, { passive: false });
+        window.addEventListener('touchstart', onBannerTouchStart, { passive: true });
+        window.addEventListener('touchmove', onBannerTouchMove, { passive: false });
+        window.addEventListener('touchend', onBannerTouchEnd, { passive: true });
     }
 
     function startTypewriter() {
