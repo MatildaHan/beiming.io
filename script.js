@@ -6,9 +6,8 @@
     // 站点信息
     // ============================================================
     var _siteCache = null;
-
 async function getSite() {
-    // 站点信息写死，不请求数据库
+ 
     return {
         site_name: '须臾之间',
         site_desc: '寄蜉蝣于天地，渺沧海之一粟'
@@ -133,7 +132,7 @@ async function getSite() {
     var bannerCurrentStep = 0;
 
     var BANNER_CONFIG = {
-        imageUrl: 'images/wallhaven-qro5vq.jpg,    // ★ 换成你的图片路径
+        imageUrl: 'images/banner.jpg',    // ★ 换成你的图片路径
         cols: 6,
         rows: 4,
         randomStage1Count: 4,
