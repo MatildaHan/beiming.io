@@ -28,7 +28,7 @@ body {
     overflow-x: hidden;
 }
 
-/* ★ 首屏锁定 */
+/* 首屏锁定 */
 body.banner-locked {
     overflow: hidden;
     height: 100vh;
@@ -40,13 +40,11 @@ a {
 }
 
 /* ============================================================
-   ★ 顶部导航：两种模式
-   默认（其余页面）：独立 80px，有底边线
-   首页（banner-mode）：悬浮在 Banner 内，50px，透明
+   ★ 顶部导航：所有页面统一 50px 高
    ============================================================ */
 .site-header {
     position: relative;
-    height: 80px;
+    height: 50px;
     background: #0C0A09;
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
     z-index: 100;
@@ -58,6 +56,7 @@ a {
     transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
+/* 首页：悬浮在 Banner 内 */
 body.banner-mode .site-header {
     position: fixed;
     top: 0;
@@ -77,16 +76,13 @@ body.banner-mode .site-header {
 .header-wrap {
     width: 1440px;
     max-width: 100%;
-    height: 80px;
+    height: 50px;
     margin: 0 auto;
     padding: 0 60px;
     box-sizing: border-box;
     display: flex;
     justify-content: space-between;
     align-items: center;
-}
-body.banner-mode .header-wrap {
-    height: 50px;
 }
 
 .logo-area {
@@ -95,22 +91,16 @@ body.banner-mode .header-wrap {
     gap: 16px;
 }
 .logo-name {
-    font-size: 20px;
+    font-size: 18px;
     color: #ffffff;
     font-weight: 700;
     letter-spacing: 2px;
     line-height: 1.2;
 }
-body.banner-mode .logo-name {
-    font-size: 18px;
-}
 .logo-slogan {
-    font-size: 12px;
+    font-size: 11px;
     color: #999999;
     font-weight: 400;
-}
-body.banner-mode .logo-slogan {
-    font-size: 11px;
 }
 
 .nav-list {
@@ -121,13 +111,10 @@ body.banner-mode .logo-slogan {
 .nav-list a {
     font-size: 13px;
     color: #999999;
-    padding: 6px 18px;
+    padding: 4px 16px;
     transition: 0.25s ease;
     cursor: pointer;
     position: relative;
-}
-body.banner-mode .nav-list a {
-    padding: 4px 16px;
 }
 .nav-list a:hover {
     color: #ffffff;
@@ -216,6 +203,7 @@ body.banner-mode .nav-list a {
     inset: 0;
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
     opacity: 0;
     transform: scale(0.9);
     transition: opacity 0.8s ease,
@@ -518,7 +506,7 @@ body.banner-mode .nav-list a {
 .suibi-page::after {
     content: '';
     position: fixed;
-    top: var(--header-height, 80px);
+    top: var(--header-height, 50px);
     bottom: 0;
     width: 1px;
     background: rgba(153, 153, 153, 0.5);
@@ -587,7 +575,7 @@ body.banner-mode .nav-list a {
 .zaji-page::after {
     content: '';
     position: fixed;
-    top: var(--header-height, 80px);
+    top: var(--header-height, 50px);
     bottom: 0;
     width: 1px;
     background: rgba(153, 153, 153, 0.5);
@@ -723,7 +711,7 @@ body.banner-mode .nav-list a {
 .xianhua-page::after {
     content: '';
     position: fixed;
-    top: var(--header-height, 80px);
+    top: var(--header-height, 50px);
     bottom: 0;
     width: 1px;
     background: rgba(153, 153, 153, 0.5);
@@ -868,7 +856,6 @@ body.banner-mode .nav-list a {
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
     }
-    .site-header { height: 50px; }
     .logo-name { font-size: 16px; }
     .logo-slogan { display: none; }
     .nav-list a {
