@@ -176,7 +176,7 @@ body.banner-mode .site-header {
                 opacity 0.6s ease;
 }
 
-/* 随机碎片（阶段 1、2）：倾斜、模糊、放大 20% */
+/* 随机碎片：倾斜、模糊、放大 20% */
 .random-fragment {
     position: absolute;
     opacity: 0;
@@ -190,7 +190,7 @@ body.banner-mode .site-header {
 }
 .random-fragment.show { opacity: 1; }
 
-/* 固定碎片（阶段 3~6）：正确位置淡入 */
+/* 固定碎片：正确位置淡入 */
 .fixed-fragment {
     position: absolute;
     opacity: 0;
@@ -214,7 +214,7 @@ body.banner-mode .site-header {
     z-index: 2;
 }
 .banner-full.show { opacity: 1; }
-/* 阶段 7：放大铺满 */
+/* 阶段 7：铺满 */
 .banner-full.zoom { transform: scale(1); }
 
 /* 下雨 canvas */
@@ -227,20 +227,6 @@ body.banner-mode .site-header {
     transition: opacity 1s ease;
 }
 .banner-rain.show { opacity: 1; }
-
-/* ★ 点击层：接收鼠标点击，推进阶段 */
-.banner-click-layer {
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    cursor: pointer;
-    background: transparent;
-    transition: opacity 0.3s ease;
-}
-.banner-click-layer.disabled {
-    opacity: 0;
-    pointer-events: none;
-}
 
 /* 文字层：阶段 7 后显示 */
 .banner-overlay {
