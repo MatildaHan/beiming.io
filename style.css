@@ -28,6 +28,12 @@ body {
     overflow-x: hidden;
 }
 
+/* 首屏锁定 */
+body.banner-locked {
+    overflow: hidden;
+    height: 100vh;
+}
+
 a {
     text-decoration: none;
     color: inherit;
@@ -37,7 +43,8 @@ a {
    顶部导航：默认独立（其余页面），首页悬浮（banner-mode）
    ============================================================ */
 .site-header {
-    position: relative;
+    position: sticky;
+    top: 0;
     height: 50px;
     background: #0C0A09;
     border-bottom: 1px solid rgba(153, 153, 153, 0.5);
@@ -56,7 +63,6 @@ body.banner-mode .site-header {
     border-bottom: none;
 }
 
-/* 滚出首屏后，首页 header 加实心背景 */
 body.banner-mode.scrolled .site-header {
     background: rgba(12, 10, 9, 0.92);
     backdrop-filter: blur(10px);
@@ -153,15 +159,74 @@ body.banner-mode.scrolled .site-header {
     z-index: 10;
 }
 
-/* 完整图：铺满，无动画 */
+/* 碎片层：整体 90% 缩放 */
+.banner-fragments {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    transform: scale(0.9);
+    transform-origin: center center;
+    transition: transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                opacity 0.6s ease;
+}
+
+/* 单个碎片（用绝对定位铺满 90% 区域） */
+.fragment {
+    position: absolute;
+    background-repeat: no-repeat;
+    will-change: opacity, transform, filter;
+}
+
+/* 随机位置碎片：倾斜 + 模糊 */
+.fragment.random {
+    opacity: 0;
+    transform: translate(var(--dx, 0), var(--dy, 0))
+               rotate(var(--rot, 0deg))
+               scale(var(--scale, 1));
+    filter: blur(var(--blur, 6px));
+    transition: opacity 0.7s ease,
+                transform 0.7s ease,
+                filter 0.7s ease;
+}
+.fragment.random.show {
+    opacity: 1;
+}
+
+/* 正确位置碎片：无倾斜、无模糊 */
+.fragment.fixed {
+    opacity: 0;
+    transition: opacity 0.7s ease;
+}
+.fragment.fixed.show {
+    opacity: 1;
+}
+
+/* 完整图（阶段 6） */
 .banner-full {
     position: absolute;
     inset: 0;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    z-index: 1;
+    opacity: 0;
+    transform: scale(0.9);
+    transition: opacity 0.8s ease,
+                transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    z-index: 2;
 }
+.banner-full.show { opacity: 1; }
+.banner-full.zoom { transform: scale(1); }
+
+/* 下雨 canvas */
+.banner-rain {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1s ease;
+}
+.banner-rain.show { opacity: 1; }
 
 /* 文字层 */
 .banner-overlay {
@@ -172,6 +237,13 @@ body.banner-mode.scrolled .site-header {
     justify-content: center;
     align-items: center;
     z-index: 4;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+}
+.banner-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
 }
 .banner-text {
     font-size: clamp(28px, 3vw, 48px);
@@ -764,7 +836,6 @@ body.banner-mode.scrolled .site-header {
         height: 50px;
         padding: 0 20px;
     }
-    /* 首页 header 加半透明背景，避免文字看不清 */
     body.banner-mode .site-header {
         background: rgba(12, 10, 9, 0.6);
         backdrop-filter: blur(8px);
