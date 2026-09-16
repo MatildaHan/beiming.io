@@ -113,7 +113,7 @@
     var bannerCurrentStep = 0;
 
     var BANNER_CONFIG = {
-        imageUrl: 'images/0915.jpg',    // ★ 换成你的图片
+        imageUrl: 'images/wallhaven-qro5vq.jpg',    // ★ 换成你的图片
         cols: 6,
         rows: 4,
         randomStage1Count: 4,
