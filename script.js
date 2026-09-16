@@ -7,12 +7,13 @@
     // ============================================================
     var _siteCache = null;
 
-    async function getSite() {
-        if (_siteCache) return _siteCache;
-        var list = await DB.getAll('site_settings');
-        _siteCache = list && list.length > 0 ? list[0] : {};
-        return _siteCache;
-    }
+async function getSite() {
+    // 站点信息写死，不请求数据库
+    return {
+        site_name: '须臾之间',
+        site_desc: '寄蜉蝣于天地，渺沧海之一粟'
+    };
+}
 
     // ============================================================
     // 页面导航
