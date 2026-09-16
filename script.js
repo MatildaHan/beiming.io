@@ -633,18 +633,52 @@
             ctx.clearRect(0, 0, rainCanvas.width, rainCanvas.height);
         }
 
-        // ============================================================
-        // 初始化
-        // ============================================================
-        createFixedFragments();
+      // ============================================================
+// 初始化
+// ============================================================
+createFixedFragments();
 
-        // ★ 初始锁屏，header 隐藏（CSS 已默认隐藏）
-        document.body.classList.add('banner-locked');
+// ★ 移动端（≤768px）：跳过动画，直接显示完整 Banner
+if (window.innerWidth <= 768) {
+    // 显示完整图
+    fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+    fullLayer.classList.add('show');
+    fullLayer.classList.add('zoom');
 
-        bannerState.autoStartTimer = setTimeout(function() {
-            bannerState.autoStartTimer = null;
-            startAutoPlay();
-        }, BANNER_CONFIG.autoStartDelay);
+    // 显示文字层 + 触发打字机
+    var overlay = document.getElementById('bannerOverlay');
+    if (overlay) overlay.classList.add('show');
+
+    // 隐藏滚动提示
+    var hint = document.getElementById('bannerScrollHint');
+    if (hint) hint.classList.add('hide');
+
+    // 显示 header
+    if (siteHeader) siteHeader.classList.add('visible');
+    updateHeaderHeight();
+
+    // 解锁滚动
+    document.body.classList.remove('banner-locked');
+
+    // 触发打字机
+    startTypewriter();
+
+    // 标记动画已完成
+    bannerCurrentStep = 7;
+    bannerState.autoFinished = true;
+
+    return;   // ★ 直接返回，不启动自动播放
+}
+
+// ============================================================
+// 桌面端：正常走 7 阶段动画
+// ============================================================
+document.body.classList.add('banner-locked');
+
+bannerState.autoStartTimer = setTimeout(function() {
+    bannerState.autoStartTimer = null;
+    startAutoPlay();
+}, BANNER_CONFIG.autoStartDelay);
     }
 
     // ============================================================
