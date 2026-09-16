@@ -100,7 +100,7 @@ a {
 .nav-list a {
     font-size: 13px;
     color: #999999;
-    padding: 6px 18px;
+    padding: 4px 16px;
     transition: 0.25s ease;
     cursor: pointer;
     position: relative;
