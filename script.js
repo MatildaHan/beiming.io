@@ -34,7 +34,6 @@
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
-        // ★ 切换 header 模式
         if (pageId === 'page-home') {
             document.body.classList.add('banner-mode');
         } else {
@@ -116,7 +115,6 @@
         if (!banner) return;
 
         window.addEventListener('scroll', function() {
-            // 只在首页处理
             if (!document.body.classList.contains('banner-mode')) return;
 
             var bannerBottom = banner.offsetTop + banner.offsetHeight;
@@ -129,40 +127,454 @@
     }
 
     // ============================================================
-    // Banner 初始化
+    // Banner 碎片拼合
     // ============================================================
-    function initBanner() {
-        var bannerFull = document.getElementById('bannerFull');
-        if (!bannerFull) return;
+    var bannerStep = 0;
 
-        // 首页默认 banner-mode，header 悬浮
+    var BANNER_CONFIG = {
+        imageUrl: 'images/0916.jpg',
+        cols: 6,
+        rows: 4,
+        // 阶段 0 显示的随机碎片数量
+        initRandomCount: 4,
+        // 阶段 1 增加的随机碎片数量
+        stage1AddRandom: 6,
+        // 阶段 2~4 每批正确位置的碎片数
+        fixedStageAdd: 6
+    };
+
+    var bannerState = {
+        ready: false,
+        imageW: 1920,
+        imageH: 1080,
+        // 随机层
+        randomLayer: null,
+        // 碎片层容器（90% 缩放）
+        fragmentsLayer: null,
+        // 所有碎片（按 id 索引 1~24）
+        allFragments: {},
+        // 已显示为"正确位置"的 id 集合
+        revealedIds: [],
+        // 打乱后的 id 顺序
+        shuffledIds: null,
+        // 滚轮节流
+        lastWheelTime: 0,
+        // 打字机是否已执行
+        typewriterDone: false,
+        // 下雨是否已启动
+        rainStarted: false,
+        rainRAF: null,
+        rainDrops: []
+    };
+
+    function initBannerFragments() {
+        var banner = document.getElementById('banner');
+        var fragmentsLayer = document.getElementById('bannerFragments');
+        var fullLayer = document.getElementById('bannerFull');
+        var rainCanvas = document.getElementById('bannerRain');
+        var siteHeader = document.getElementById('siteHeader');
+
+        if (!banner || !fragmentsLayer) return;
+
         document.body.classList.add('banner-mode');
+        bannerState.fragmentsLayer = fragmentsLayer;
 
-        // 设置 banner 图
-        bannerFull.style.backgroundImage = 'url(images/0916.jpg)';
+        var COLS = BANNER_CONFIG.cols;
+        var ROWS = BANNER_CONFIG.rows;
+        var TOTAL = COLS * ROWS;
+
+        // 计算图片按 cover 规则的实际绘制矩形
+        function computeCoverRect() {
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+            var imgW = bannerState.imageW;
+            var imgH = bannerState.imageH;
+
+            var scale = Math.max(vw / imgW, vh / imgH);
+            var drawW = imgW * scale;
+            var drawH = imgH * scale;
+
+            return {
+                width: drawW,
+                height: drawH,
+                offsetX: (vw - drawW) / 2,
+                offsetY: (vh - drawH) / 2
+            };
+        }
+
+        // 创建 24 个碎片（位置正确，初始 opacity:0）
+        function createFragments() {
+            fragmentsLayer.innerHTML = '';
+            bannerState.allFragments = {};
+
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+            var cellW = vw / COLS;
+            var cellH = vh / ROWS;
+            var cover = computeCoverRect();
+
+            var id = 1;
+            for (var r = 0; r < ROWS; r++) {
+                for (var c = 0; c < COLS; c++) {
+                    var el = document.createElement('div');
+                    el.className = 'fragment fixed';
+                    el.dataset.id = String(id);
+                    el.style.width = cellW + 'px';
+                    el.style.height = cellH + 'px';
+                    el.style.left = (c * cellW) + 'px';
+                    el.style.top = (r * cellH) + 'px';
+                    el.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                    el.style.backgroundSize = cover.width + 'px ' + cover.height + 'px';
+                    el.style.backgroundPosition = (c * cellW - cover.offsetX) + 'px ' + (r * cellH - cover.offsetY) + 'px';
+
+                    fragmentsLayer.appendChild(el);
+                    bannerState.allFragments[id] = el;
+                    id++;
+                }
+            }
+
+            // 打乱 id 顺序
+            var ids = [];
+            for (var k = 1; k <= TOTAL; k++) ids.push(k);
+            for (var m = ids.length - 1; m > 0; m--) {
+                var j = Math.floor(Math.random() * (m + 1));
+                var t = ids[m]; ids[m] = ids[j]; ids[j] = t;
+            }
+            bannerState.shuffledIds = ids;
+        }
+
+        // 生成随机碎片（随机位置、倾斜、模糊）
+        function spawnRandomFragment() {
+            var vw = window.innerWidth;
+            var vh = window.innerHeight;
+            var cellW = vw / COLS;
+            var cellH = vh / ROWS;
+            var cover = computeCoverRect();
+
+            // 随机选一个格子位置
+            var c = Math.floor(Math.random() * COLS);
+            var r = Math.floor(Math.random() * ROWS);
+
+            var el = document.createElement('div');
+            el.className = 'fragment random';
+            el.style.width = cellW + 'px';
+            el.style.height = cellH + 'px';
+            el.style.left = (c * cellW) + 'px';
+            el.style.top = (r * cellH) + 'px';
+            el.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+            el.style.backgroundSize = cover.width + 'px ' + cover.height + 'px';
+            el.style.backgroundPosition = (c * cellW - cover.offsetX) + 'px ' + (r * cellH - cover.offsetY) + 'px';
+
+            // 随机状态
+            el.style.setProperty('--dx', (Math.random() * 520 - 260).toFixed(1) + 'px');
+            el.style.setProperty('--dy', (Math.random() * 520 - 260).toFixed(1) + 'px');
+            el.style.setProperty('--rot', (Math.random() * 50 - 25).toFixed(1) + 'deg');
+            el.style.setProperty('--scale', (1.1 + Math.random() * 0.3).toFixed(2));
+            el.style.setProperty('--blur', (6 + Math.random() * 8).toFixed(1) + 'px');
+
+            fragmentsLayer.appendChild(el);
+
+            requestAnimationFrame(function() {
+                el.classList.add('show');
+            });
+        }
+
+        // 清除所有随机碎片
+        function clearRandomFragments() {
+            var list = fragmentsLayer.querySelectorAll('.fragment.random');
+            for (var i = 0; i < list.length; i++) {
+                list[i].parentNode.removeChild(list[i]);
+            }
+        }
+
+        // 重置所有正确位置碎片的显示状态
+        function hideAllFixed() {
+            for (var id = 1; id <= TOTAL; id++) {
+                var el = bannerState.allFragments[id];
+                if (!el) continue;
+                el.classList.remove('show');
+            }
+            bannerState.revealedIds = [];
+        }
+
+        // 显示指定数量的固定碎片
+        function revealFixed(count) {
+            var ids = bannerState.shuffledIds;
+            for (var i = 0; i < count; i++) {
+                var id = ids[i];
+                var el = bannerState.allFragments[id];
+                if (!el) continue;
+                el.classList.add('show');
+                bannerState.revealedIds.push(id);
+            }
+        }
 
         // 打字机
-        startTypewriter();
-    }
+        function startTypewriter() {
+            if (bannerState.typewriterDone) return;
+            bannerState.typewriterDone = true;
 
-    function startTypewriter() {
-        var text = '写信告诉我，今夜你想要梦什么';
-        var el = document.getElementById('bannerText');
-        if (!el) return;
-        var index = 0;
-        el.innerHTML = '<span class="cursor"></span>';
+            var text = '写信告诉我，今夜你想要梦什么';
+            var el = document.getElementById('bannerText');
+            if (!el) return;
+            var index = 0;
+            el.innerHTML = '<span class="cursor"></span>';
 
-        var timer = setInterval(function() {
-            if (index < text.length) {
-                el.innerHTML = text.substring(0, index + 1) + '<span class="cursor"></span>';
-                index++;
-            } else {
-                clearInterval(timer);
-                setTimeout(function() {
-                    el.innerHTML = text;
-                }, 400);
+            var timer = setInterval(function() {
+                if (index < text.length) {
+                    el.innerHTML = text.substring(0, index + 1) + '<span class="cursor"></span>';
+                    index++;
+                } else {
+                    clearInterval(timer);
+                    setTimeout(function() {
+                        el.innerHTML = text;
+                    }, 400);
+                }
+            }, 120);
+        }
+
+        // ============================================================
+        // 核心：从阶段 0 重放到 target
+        // ============================================================
+        function applyStep(target) {
+            bannerStep = target;
+
+            // 清空状态
+            stopRain();
+            fullLayer.classList.remove('zoom');
+            fullLayer.classList.remove('show');
+            clearRandomFragments();
+            hideAllFixed();
+            fragmentsLayer.style.opacity = '1';
+            fragmentsLayer.style.transform = 'scale(0.9)';
+
+            // 隐藏文字 + 隐藏 header
+            var overlay = document.getElementById('bannerOverlay');
+            if (overlay) overlay.classList.remove('show');
+            if (siteHeader) siteHeader.classList.remove('visible');
+            document.body.classList.add('banner-locked');
+            bannerState.typewriterDone = false;
+            var txt = document.getElementById('bannerText');
+            if (txt) txt.innerHTML = '';
+
+            // 阶段 0：随机显示部分碎片
+            if (target === 0) {
+                for (var i = 0; i < BANNER_CONFIG.initRandomCount; i++) {
+                    spawnRandomFragment();
+                }
+                return;
             }
-        }, 120);
+
+            // 阶段 1：增加随机碎片
+            if (target === 1) {
+                for (var i = 0; i < BANNER_CONFIG.initRandomCount; i++) {
+                    spawnRandomFragment();
+                }
+                for (var j = 0; j < BANNER_CONFIG.stage1AddRandom; j++) {
+                    spawnRandomFragment();
+                }
+                return;
+            }
+
+            // 阶段 2：6 张正确位置
+            if (target === 2) {
+                revealFixed(6);
+                return;
+            }
+
+            // 阶段 3：12 张正确位置
+            if (target === 3) {
+                revealFixed(12);
+                return;
+            }
+
+            // 阶段 4：18 张正确位置
+            if (target === 4) {
+                revealFixed(18);
+                return;
+            }
+
+            // 阶段 5：24 张 → 图片完整（90% 缩放，碎片层保持）
+            if (target === 5) {
+                revealFixed(24);
+                return;
+            }
+
+            // 阶段 6：放大铺满 + 下雨 + 打字机
+            if (target === 6) {
+                revealFixed(24);
+                // 切换为完整图
+                setTimeout(function() {
+                    fragmentsLayer.style.opacity = '0';
+                    fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                    fullLayer.classList.add('show');   // 90%
+                    setTimeout(function() {
+                        fullLayer.classList.add('zoom');   // 100%
+                        rainCanvas.classList.add('show');
+                        startRain();
+                        // 显示 header + 文字 + 打字机
+                        if (siteHeader) siteHeader.classList.add('visible');
+                        document.body.classList.remove('banner-locked');
+                        var ov = document.getElementById('bannerOverlay');
+                        if (ov) ov.classList.add('show');
+                        startTypewriter();
+                    }, 900);
+                }, 700);
+                return;
+            }
+        }
+
+        // ============================================================
+        // 滚轮监听
+        // ============================================================
+        function nextStep() {
+            if (bannerStep >= 6) return;
+            bannerStep++;
+            applyStep(bannerStep);
+        }
+
+        function prevStep() {
+            if (bannerStep <= 0) return;
+            bannerStep--;
+            applyStep(bannerStep);
+        }
+
+        window.addEventListener('wheel', function(e) {
+            var homeActive = document.getElementById('page-home').classList.contains('active');
+            if (!homeActive) return;
+
+            if (bannerStep >= 6) {
+                // 阶段 6 后：页面滚动，但在顶部 + 向上滚 → 回退
+                if (e.deltaY < 0 && window.scrollY <= 5) {
+                    e.preventDefault();
+                    var now2 = Date.now();
+                    if (now2 - bannerState.lastWheelTime < 800) return;
+                    bannerState.lastWheelTime = now2;
+                    prevStep();
+                }
+                return;
+            }
+
+            e.preventDefault();
+
+            var now = Date.now();
+            if (now - bannerState.lastWheelTime < 800) return;
+            bannerState.lastWheelTime = now;
+
+            if (e.deltaY > 0) nextStep();
+            else if (e.deltaY < 0) prevStep();
+        }, { passive: false });
+
+        // ============================================================
+        // 下雨（向左倾斜）
+        // ============================================================
+        function startRain() {
+            if (bannerState.rainStarted) return;
+            bannerState.rainStarted = true;
+
+            rainCanvas.width = banner.offsetWidth;
+            rainCanvas.height = banner.offsetHeight;
+
+            var ctx = rainCanvas.getContext('2d');
+            var angleRad = -15 * Math.PI / 180;  // ★ 负角度 = 向左
+            var sinA = Math.sin(angleRad);
+            var cosA = Math.cos(angleRad);
+
+            bannerState.rainDrops = [];
+            for (var i = 0; i < 80; i++) {
+                bannerState.rainDrops.push({
+                    x: Math.random() * rainCanvas.width,
+                    y: Math.random() * rainCanvas.height,
+                    len: 18 + Math.random() * 16,
+                    speed: 8 + Math.random() * 8,
+                    alpha: 0.18 + Math.random() * 0.35
+                });
+            }
+
+            function drawRain() {
+                if (!bannerState.rainStarted) return;
+                ctx.clearRect(0, 0, rainCanvas.width, rainCanvas.height);
+
+                for (var i = 0; i < bannerState.rainDrops.length; i++) {
+                    var d = bannerState.rainDrops[i];
+                    var endX = d.x + d.len * sinA;
+                    var endY = d.y + d.len * cosA;
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(200, 220, 255, ' + d.alpha + ')';
+                    ctx.lineWidth = 2.2;
+                    ctx.lineCap = 'round';
+                    ctx.moveTo(d.x, d.y);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+
+                    d.x += d.speed * sinA;
+                    d.y += d.speed * cosA;
+
+                    if (d.y > rainCanvas.height + 30) {
+                        d.y = -30;
+                        d.x = Math.random() * (rainCanvas.width + 100) - 50;
+                    }
+                    if (d.x < -30) {
+                        d.x = rainCanvas.width + 20;
+                        d.y = Math.random() * rainCanvas.height * 0.5 - 100;
+                    }
+                }
+                bannerState.rainRAF = requestAnimationFrame(drawRain);
+            }
+            drawRain();
+        }
+
+        function stopRain() {
+            if (!bannerState.rainStarted) return;
+            bannerState.rainStarted = false;
+            if (bannerState.rainRAF) cancelAnimationFrame(bannerState.rainRAF);
+            bannerState.rainRAF = null;
+            var ctx = rainCanvas.getContext('2d');
+            ctx.clearRect(0, 0, rainCanvas.width, rainCanvas.height);
+        }
+
+        // ============================================================
+        // 初始化：预加载图片
+        // ============================================================
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+            bannerState.imageW = img.naturalWidth;
+            bannerState.imageH = img.naturalHeight;
+
+            createFragments();
+            bannerState.ready = true;
+
+            // 移动端：直接显示完整图
+            if (window.innerWidth <= 768) {
+                fragmentsLayer.style.display = 'none';
+                fullLayer.style.backgroundImage = 'url(' + BANNER_CONFIG.imageUrl + ')';
+                fullLayer.classList.add('show');
+                fullLayer.classList.add('zoom');
+                var overlay = document.getElementById('bannerOverlay');
+                if (overlay) overlay.classList.add('show');
+                if (siteHeader) siteHeader.classList.add('visible');
+                document.body.classList.remove('banner-locked');
+                startTypewriter();
+                bannerStep = 6;
+                return;
+            }
+
+            document.body.classList.add('banner-locked');
+            // 阶段 0：显示初始随机碎片
+            applyStep(0);
+        };
+        img.onerror = function() {
+            console.error('Banner 图片加载失败：', BANNER_CONFIG.imageUrl);
+            bannerState.imageW = 1920;
+            bannerState.imageH = 1080;
+            createFragments();
+            bannerState.ready = true;
+            document.body.classList.add('banner-locked');
+            applyStep(0);
+        };
+        img.src = BANNER_CONFIG.imageUrl;
     }
 
     // ============================================================
@@ -367,7 +779,7 @@
     // 初始化
     // ============================================================
     document.addEventListener('DOMContentLoaded', function() {
-        initBanner();
+        initBannerFragments();
         initHeaderScroll();
         renderHome();
         updateHeaderHeight();
