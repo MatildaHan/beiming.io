@@ -34,9 +34,19 @@ a {
 }
 
 /* ============================================================
-   顶部导航：悬浮在 Banner 上，50px
+   顶部导航：默认独立（其余页面），首页悬浮（banner-mode）
    ============================================================ */
 .site-header {
+    position: relative;
+    height: 50px;
+    background: #0C0A09;
+    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
+    z-index: 100;
+    box-sizing: border-box;
+}
+
+/* 首页：悬浮在 Banner 上 */
+body.banner-mode .site-header {
     position: fixed;
     top: 0;
     left: 0;
@@ -44,8 +54,14 @@ a {
     height: 50px;
     background: transparent;
     border-bottom: none;
-    z-index: 100;
-    box-sizing: border-box;
+}
+
+/* 滚出首屏后，首页 header 加实心背景 */
+body.banner-mode.scrolled .site-header {
+    background: rgba(12, 10, 9, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
 }
 
 .header-wrap {
@@ -100,14 +116,6 @@ a {
     font-weight: 500;
 }
 
-/* 滚出首屏后，header 加实心背景 */
-body.scrolled .site-header {
-    background: rgba(12, 10, 9, 0.92);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid rgba(153, 153, 153, 0.5);
-}
-
 /* ============================================================
    页面切换
    ============================================================ */
@@ -145,7 +153,7 @@ body.scrolled .site-header {
     z-index: 10;
 }
 
-/* 完整图：直接铺满，无动画 */
+/* 完整图：铺满，无动画 */
 .banner-full {
     position: absolute;
     inset: 0;
@@ -756,7 +764,8 @@ body.scrolled .site-header {
         height: 50px;
         padding: 0 20px;
     }
-    .site-header {
+    /* 首页 header 加半透明背景，避免文字看不清 */
+    body.banner-mode .site-header {
         background: rgba(12, 10, 9, 0.6);
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
