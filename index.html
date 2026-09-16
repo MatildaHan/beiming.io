@@ -29,25 +29,19 @@
     <main class="container" id="app">
         <!-- ===== 序章（Banner 首屏） ===== -->
         <section id="page-home" class="page-section active">
-            <!-- Banner -->
             <section class="banner" id="banner">
                 <div class="random-layer" id="randomLayer"></div>
                 <div class="fixed-layer" id="fixedLayer"></div>
                 <div class="banner-full" id="bannerFull"></div>
                 <canvas class="banner-rain" id="bannerRain"></canvas>
 
-                <!-- ★ 点击层：接收鼠标点击，推进阶段 -->
-                <div class="banner-click-layer" id="bannerClickLayer"></div>
-
-                <!-- 打字机文字 + 按钮（阶段 7 后显示） -->
                 <div class="banner-overlay" id="bannerOverlay">
                     <div class="banner-text" id="bannerText"></div>
                     <button class="banner-btn" id="bannerBtn">去告诉她 <span class="btn-arrow">›</span></button>
                 </div>
 
-                <!-- 滚动提示 -->
                 <div class="banner-scroll-hint" id="bannerScrollHint">
-                    <span>点击 / 向下滚动</span>
+                    <span>向下滚动</span>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
                          stroke="currentColor" stroke-width="2">
                         <polyline points="6 9 12 15 18 9"/>
@@ -55,16 +49,12 @@
                 </div>
             </section>
 
-            <!-- Banner 之后的内容 -->
             <div class="home-content">
                 <div class="gap-divider"></div>
-
                 <div class="essay-section">
                     <div class="essay-grid" id="homeSuibi"></div>
                 </div>
-
                 <div class="gap-divider"></div>
-
                 <div class="note-section">
                     <div class="note-left">
                         <h2 class="note-heading">杂记</h2>
