@@ -165,9 +165,11 @@
     function buildBannerFragments() {
         var wrap = document.getElementById('bannerFragments');
         var bannerFull = document.getElementById('bannerFull');
+        var finalImg = document.getElementById('bannerFinalImage');
         if (!wrap || !bannerFull) return;
 
         bannerFull.style.backgroundImage = 'url(' + BANNER_IMG + ')';
+        if (finalImg) finalImg.style.backgroundImage = 'url(' + BANNER_IMG + ')';
         wrap.innerHTML = '';
         bannerPieces = [];
         bannerScatterTransform = [];
@@ -179,8 +181,9 @@
                 piece.className = 'banner-piece';
                 piece.style.left = (col / FRAG_COLS * 100) + '%';
                 piece.style.top = (row / FRAG_ROWS * 100) + '%';
-                piece.style.width = (100 / FRAG_COLS) + '%';
-                piece.style.height = (100 / FRAG_ROWS) + '%';
+                // 宽高各多留 2px 重叠，避免父级 scale 缩放时因子像素取整出现拼接缝隙
+                piece.style.width = 'calc(' + (100 / FRAG_COLS) + '% + 2px)';
+                piece.style.height = 'calc(' + (100 / FRAG_ROWS) + '% + 2px)';
                 piece.style.backgroundImage = 'url(' + BANNER_IMG + ')';
                 piece.style.backgroundSize = (FRAG_COLS * 100) + '% ' + (FRAG_ROWS * 100) + '%';
                 piece.style.backgroundPosition =
@@ -258,11 +261,12 @@
         scatterShownCount = 0;
         correctedShownCount = 0;
         var frag = document.getElementById('bannerFragments');
-        var rain = document.getElementById('bannerRain');
+        var finalImg = document.getElementById('bannerFinalImage');
         var overlay = document.getElementById('bannerOverlay');
         var bannerEl = document.getElementById('banner');
         if (frag) frag.classList.remove('zoom-out', 'zoom-full');
-        if (rain) rain.classList.remove('rain-active');
+        if (finalImg) finalImg.classList.remove('show');
+        stopRain();
         if (overlay) overlay.classList.remove('show');
         if (bannerEl) bannerEl.classList.remove('banner-revealed');
         document.body.classList.remove('banner-step6');
@@ -344,47 +348,133 @@
     }
 
     function triggerBannerFinale() {
-        var rain = document.getElementById('bannerRain');
         var overlay = document.getElementById('bannerOverlay');
+        var finalImg = document.getElementById('bannerFinalImage');
 
-        // 缩放到 100% 铺满全屏后，出现向左倾斜的下雨效果
+        // 缩放到 100% 铺满全屏：换上无缝原图，并出现向左倾斜的下雨效果
         bannerFinaleTimers.push(setTimeout(function() {
-            if (rain) {
-                buildRainDrops(rain);
-                rain.classList.add('rain-active');
-            }
-        }, 700));
+            if (finalImg) finalImg.classList.add('show');
+            startRain();
+        }, 500));
 
         // 下雨效果出现后，打字机文字浮现
         bannerFinaleTimers.push(setTimeout(function() {
             if (overlay) overlay.classList.add('show');
             startTypewriter();
-        }, 1700));
+        }, 1600));
     }
 
     function revertBannerFinale() {
         clearBannerFinaleTimers();
-        var rain = document.getElementById('bannerRain');
         var overlay = document.getElementById('bannerOverlay');
+        var finalImg = document.getElementById('bannerFinalImage');
         var textEl = document.getElementById('bannerText');
-        if (rain) rain.classList.remove('rain-active');
+        if (finalImg) finalImg.classList.remove('show');
+        stopRain();
         if (overlay) overlay.classList.remove('show');
         if (textEl) textEl.innerHTML = '<span class="cursor"></span>';
     }
 
-    function buildRainDrops(rain) {
-        if (rain.childElementCount > 0) return; // 只生成一次
-        var count = 90;
-        var html = '';
+    // ============================================================
+    // Canvas 下雨效果：雨点向左倾斜下落
+    // ============================================================
+    var rainCanvas = null;
+    var rainCtx = null;
+    var rainParticles = [];
+    var rainAnimId = null;
+    var rainRunning = false;
+
+    function ensureRainCanvas() {
+        if (rainCanvas) return;
+        rainCanvas = document.getElementById('bannerRainCanvas');
+        if (!rainCanvas) return;
+        rainCtx = rainCanvas.getContext('2d');
+        window.addEventListener('resize', resizeRainCanvas);
+    }
+
+    function resizeRainCanvas() {
+        if (!rainCanvas) return;
+        var banner = document.getElementById('banner');
+        if (!banner) return;
+        var rect = banner.getBoundingClientRect();
+        var dpr = window.devicePixelRatio || 1;
+        rainCanvas.width = Math.max(1, Math.round(rect.width * dpr));
+        rainCanvas.height = Math.max(1, Math.round(rect.height * dpr));
+        rainCanvas.style.width = rect.width + 'px';
+        rainCanvas.style.height = rect.height + 'px';
+        if (rainCtx) rainCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        seedRainParticles(rect.width, rect.height);
+    }
+
+    function makeRainParticle(w, h, randomY) {
+        return {
+            x: Math.random() * (w + 260) - 130, // 起点覆盖右侧外围，向左飘入画面
+            y: randomY ? Math.random() * h : -30 - Math.random() * 60,
+            len: 16 + Math.random() * 26,
+            speed: 6 + Math.random() * 7,       // 下落速度
+            drift: -(2.2 + Math.random() * 3.2), // 向左的水平速度
+            opacity: 0.12 + Math.random() * 0.35
+        };
+    }
+
+    function seedRainParticles(w, h) {
+        var count = 150;
+        rainParticles = [];
         for (var i = 0; i < count; i++) {
-            var left = randRange(-5, 105);
-            var height = randRange(50, 130);
-            var duration = randRange(0.9, 2.1);
-            var delay = randRange(0, 2.5);
-            html += '<span class="rain-drop" style="left:' + left + '%;height:' + height +
-                'px;animation-duration:' + duration + 's;animation-delay:' + delay + 's;"></span>';
+            rainParticles.push(makeRainParticle(w, h, true));
         }
-        rain.innerHTML = html;
+    }
+
+    function stepRain() {
+        if (!rainRunning || !rainCtx || !rainCanvas) return;
+        var dpr = window.devicePixelRatio || 1;
+        var w = rainCanvas.width / dpr;
+        var h = rainCanvas.height / dpr;
+        rainCtx.clearRect(0, 0, w, h);
+        rainCtx.lineCap = 'round';
+        rainCtx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+        for (var i = 0; i < rainParticles.length; i++) {
+            var p = rainParticles[i];
+            rainCtx.globalAlpha = p.opacity;
+            rainCtx.lineWidth = 1.3;
+            rainCtx.beginPath();
+            rainCtx.moveTo(p.x, p.y);
+            rainCtx.lineTo(p.x + p.drift * 1.8, p.y + p.len); // 线条向左倾斜
+            rainCtx.stroke();
+            p.x += p.drift;
+            p.y += p.speed;
+            if (p.y > h + 30 || p.x < -150) {
+                var np = makeRainParticle(w, h, false);
+                p.x = np.x; p.y = np.y; p.len = np.len;
+                p.speed = np.speed; p.drift = np.drift; p.opacity = np.opacity;
+            }
+        }
+        rainCtx.globalAlpha = 1;
+        rainAnimId = requestAnimationFrame(stepRain);
+    }
+
+    function startRain() {
+        ensureRainCanvas();
+        if (!rainCanvas) return;
+        resizeRainCanvas();
+        rainRunning = true;
+        var wrap = document.getElementById('bannerRainWrap');
+        if (wrap) wrap.classList.add('rain-active');
+        if (!rainAnimId) rainAnimId = requestAnimationFrame(stepRain);
+    }
+
+    function stopRain() {
+        rainRunning = false;
+        if (rainAnimId) {
+            cancelAnimationFrame(rainAnimId);
+            rainAnimId = null;
+        }
+        var wrap = document.getElementById('bannerRainWrap');
+        if (wrap) wrap.classList.remove('rain-active');
+        if (rainCtx && rainCanvas) {
+            var dpr = window.devicePixelRatio || 1;
+            rainCtx.clearRect(0, 0, rainCanvas.width / dpr, rainCanvas.height / dpr);
+        }
     }
 
     // ============================================================
