@@ -34,6 +34,14 @@
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
 
+        // ★ 切换 header 模式
+        if (pageId === 'page-home') {
+            document.body.classList.add('banner-mode');
+        } else {
+            document.body.classList.remove('banner-mode');
+            document.body.classList.remove('scrolled');
+        }
+
         updateHeaderHeight();
 
         if (pageId === 'page-home') renderHome();
@@ -101,13 +109,16 @@
     }
 
     // ============================================================
-    // 滚出首屏后 header 加实心背景
+    // 滚出首屏后 header 加实心背景（仅首页）
     // ============================================================
     function initHeaderScroll() {
         var banner = document.getElementById('banner');
         if (!banner) return;
 
         window.addEventListener('scroll', function() {
+            // 只在首页处理
+            if (!document.body.classList.contains('banner-mode')) return;
+
             var bannerBottom = banner.offsetTop + banner.offsetHeight;
             if (window.scrollY >= bannerBottom - 50) {
                 document.body.classList.add('scrolled');
@@ -118,13 +129,16 @@
     }
 
     // ============================================================
-    // Banner 初始化：显示完整图 + 打字机
+    // Banner 初始化
     // ============================================================
     function initBanner() {
         var bannerFull = document.getElementById('bannerFull');
         if (!bannerFull) return;
 
-        // 直接设置背景图
+        // 首页默认 banner-mode，header 悬浮
+        document.body.classList.add('banner-mode');
+
+        // 设置 banner 图
         bannerFull.style.backgroundImage = 'url(images/0916.jpg)';
 
         // 打字机
