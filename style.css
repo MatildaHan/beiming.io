@@ -549,7 +549,6 @@ body.banner-scroll-lock {
     margin-left: -60px;
     margin-right: -60px;
     padding: 60px 60px 80px;
-    border-top: 1px solid rgba(153, 153, 153, 0.5);
     box-sizing: border-box;
     position: relative;
 }
