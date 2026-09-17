@@ -42,8 +42,12 @@
             document.body.classList.remove('banner-step6');
             document.body.classList.remove('scrolled');
             if (typeof releaseScrollLock === 'function') releaseScrollLock();
-            // ★ 离开首页：停止 idle 定时器
+            // ★ 离开首页：停止 idle 动画
             stopIdleAnim();
+            if (idleRestartTimer) {
+                clearTimeout(idleRestartTimer);
+                idleRestartTimer = null;
+            }
         }
 
         updateHeaderHeight();
@@ -159,14 +163,15 @@
     var bannerStep = 0;
     var bannerScrollReleased = false;
     var bannerPieces = [];
-    var bannerScatterTransform = [];   // 保留兼容（阶段 2-5 的归位仍用到）
+    var bannerScatterTransform = [];
     var correctOrder = [];
     var scatterOrder = [];
     var scatterShownCount = 0;
     var correctedShownCount = 0;
 
-    // ★ 新增：idle 定时器
-    var idleTimer = null;
+    // ★ idle 相关定时器
+    var idleTimer = null;         // 每 500ms 增/减
+    var idleRestartTimer = null;  // 阶段 0 延迟 2s 启动
 
     function shuffleArray(arr) {
         var a = arr.slice();
@@ -183,32 +188,13 @@
         return Math.floor(randRange(min, max + 1));
     }
 
-    // ★ 新增：给碎片写入 CSS 变量（散落态参数）
+    // 给碎片写入 CSS 变量（散落态参数）
     function applyScatterVars(piece, t) {
         piece.style.setProperty('--tile-x', t.offsetX + '%');
         piece.style.setProperty('--tile-y', t.offsetY + '%');
         piece.style.setProperty('--tile-rotation', t.rotation + 'deg');
         piece.style.setProperty('--tile-scale', t.scale);
         piece.style.setProperty('--tile-blur', t.blur + 'px');
-    }
-
-    // ★ 新增：把 CSS 变量拼成 transform 应用到碎片（散落态）
-    // 注意：碎片自身的宽高是相对于父级 banner 的百分比，
-    // translate 用 vw/vh 会跳出，因此这里把百分比换算成像素，
-    // 让初始态与后续滚动逻辑的视觉一致。
-    function applyScatterTransform(piece) {
-        var banner = document.getElementById('banner');
-        if (!banner) return;
-        var rect = banner.getBoundingClientRect();
-        var bw = rect.width, bh = rect.height;
-        var xPct = parseFloat(piece.style.getPropertyValue('--tile-x')) || 0;
-        var yPct = parseFloat(piece.style.getPropertyValue('--tile-y')) || 0;
-        var rot = piece.style.getPropertyValue('--tile-rotation') || '0deg';
-        var sc = piece.style.getPropertyValue('--tile-scale') || '1';
-        var px = xPct / 100 * bw;
-        var py = yPct / 100 * bh;
-        piece.style.transform =
-            'translate(' + px + 'px, ' + py + 'px) rotate(' + rot + ') scale(' + sc + ')';
     }
 
     function buildBannerFragments() {
@@ -229,7 +215,6 @@
                 var piece = document.createElement('div');
                 piece.className = 'banner-piece';
 
-                // ★ 新增：写入 data-* 属性
                 piece.dataset.row = row;
                 piece.dataset.column = col;
                 piece.dataset.order = idx;
@@ -240,13 +225,13 @@
                 piece.style.height = 'calc(' + (100 / FRAG_ROWS) + '% + 2px)';
                 piece.style.backgroundImage = 'url(' + BANNER_IMG + ')';
 
-                // ★ 随机散落参数（存进 data-* 与 CSS 变量）
+                // ★ 随机散落参数（模糊度加大到 8~18px）
                 var t = {
                     offsetX: randRange(-70, 70),
                     offsetY: randRange(-60, 60),
                     rotation: randRange(-55, 55),
                     scale: randRange(0.75, 1.1),
-                    blur: randRange(3, 8)
+                    blur: randRange(8, 18)
                 };
                 piece.dataset.offsetX = t.offsetX.toFixed(3);
                 piece.dataset.offsetY = t.offsetY.toFixed(3);
@@ -254,9 +239,9 @@
                 piece.dataset.scale = t.scale.toFixed(3);
                 piece.dataset.blur = t.blur.toFixed(3);
 
-                // 应用 CSS 变量 + transform
                 applyScatterVars(piece, t);
-                // 用 JS 立即应用 transform（避免下一帧才生效）
+
+                // 立即应用 transform（用像素换算，响应式一致）
                 var banner = document.getElementById('banner');
                 if (banner) {
                     var rect = banner.getBoundingClientRect();
@@ -268,7 +253,6 @@
                         'scale(' + t.scale + ')';
                 }
 
-                // 保留旧的字符串形式（阶段 2-5 归位仍用）
                 bannerScatterTransform[idx] =
                     'translate(' + t.offsetX + 'vw, ' + t.offsetY + 'vh) ' +
                     'rotate(' + t.rotation + 'deg) scale(' + t.scale + ')';
@@ -318,13 +302,10 @@
         }
     }
 
-    // ★ 修改：setPieceScattered 使用 CSS 变量
+    // ★ 散落态：不再移除 is-idle-visible
     function setPieceScattered(idx) {
         var piece = bannerPieces[idx];
         if (!piece || piece.classList.contains('is-corrected')) return;
-        // 移除 idle 标记（如果是从 idle 状态进入）
-        piece.classList.remove('is-idle-visible');
-        // 用已存的 transform（散落态）
         var banner = document.getElementById('banner');
         if (banner) {
             var rect = banner.getBoundingClientRect();
@@ -344,7 +325,7 @@
         var piece = bannerPieces[idx];
         if (!piece) return;
         piece.classList.remove('is-scattered');
-        piece.classList.remove('is-idle-visible');   // ★ 确保归位时清理 idle 状态
+        piece.classList.remove('is-idle-visible');
 
         if (!piece.classList.contains('is-visible')) {
             piece.style.transform = 'translate(0, 0) rotate(0deg) scale(0.92)';
@@ -374,7 +355,6 @@
             if (piece.classList.contains('is-scattered')) {
                 piece.classList.remove('is-visible', 'is-scattered');
             }
-            // ★ 清理 idle 状态
             piece.classList.remove('is-idle-visible');
         }
     }
@@ -387,39 +367,22 @@
     }
 
     // ============================================================
-    // ★ 新增：idle 状态 —— 初始随机显示 + 每 0.5s 增/减
+    // idle 动画：初始 3~5 个碎片，每 500ms 增/减，维持 3~6 个
     // ============================================================
     function startIdleAnim() {
         stopIdleAnim();
 
-        // 1. 初始随机选 ~30% 碎片加 is-idle-visible
-        var idleCount = Math.max(4, Math.floor(FRAG_TOTAL * 0.3));
+        // ★ 初始数量：3~5 个（严格小于 6）
+        var idleCount = randInt(3, 5);
         var pool = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
-        for (var i = 0; i < idleCount; i++) {
+        for (var i = 0; i < idleCount && i < pool.length; i++) {
             var piece = bannerPieces[pool[i]];
             if (piece) piece.classList.add('is-idle-visible');
         }
 
-        // 2. 每 500ms 随机增/减
+        // 每 500ms 增/减
         idleTimer = setInterval(function() {
-            // 随机增：把 1~3 个当前不可见的碎片加上 idle-visible
-            var hidden = [];
-            for (var k = 0; k < FRAG_TOTAL; k++) {
-                var p = bannerPieces[k];
-                if (!p) continue;
-                if (!p.classList.contains('is-idle-visible')
-                    && !p.classList.contains('is-corrected')
-                    && !p.classList.contains('is-scattered')) {
-                    hidden.push(k);
-                }
-            }
-            var addCount = Math.min(hidden.length, randInt(1, 3));
-            var addPool = shuffleArray(hidden);
-            for (var a = 0; a < addCount; a++) {
-                bannerPieces[addPool[a]].classList.add('is-idle-visible');
-            }
-
-            // 随机减：把 1~2 个当前 idle-visible 的碎片移除
+            // 统计当前 idle-visible 数量
             var visible = [];
             for (var m = 0; m < FRAG_TOTAL; m++) {
                 var q = bannerPieces[m];
@@ -427,10 +390,33 @@
                     visible.push(m);
                 }
             }
-            var removeCount = Math.min(visible.length, randInt(1, 2));
-            var removePool = shuffleArray(visible);
-            for (var r = 0; r < removeCount; r++) {
-                bannerPieces[removePool[r]].classList.remove('is-idle-visible');
+
+            // 随机增：总量不超过 6
+            if (visible.length < 6) {
+                var addCount = Math.min(6 - visible.length, randInt(1, 3));
+                var hidden = [];
+                for (var k = 0; k < FRAG_TOTAL; k++) {
+                    var p = bannerPieces[k];
+                    if (!p) continue;
+                    if (!p.classList.contains('is-idle-visible')
+                        && !p.classList.contains('is-corrected')
+                        && !p.classList.contains('is-scattered')) {
+                        hidden.push(k);
+                    }
+                }
+                var addPool = shuffleArray(hidden);
+                for (var a = 0; a < addCount && a < addPool.length; a++) {
+                    bannerPieces[addPool[a]].classList.add('is-idle-visible');
+                }
+            }
+
+            // 随机减：剩余数量不低于 3
+            if (visible.length > 3) {
+                var removeCount = Math.min(visible.length - 3, randInt(1, 2));
+                var removePool = shuffleArray(visible);
+                for (var r = 0; r < removeCount; r++) {
+                    bannerPieces[removePool[r]].classList.remove('is-idle-visible');
+                }
             }
         }, 500);
     }
@@ -440,7 +426,6 @@
             clearInterval(idleTimer);
             idleTimer = null;
         }
-        // 清理所有 idle 状态
         for (var i = 0; i < bannerPieces.length; i++) {
             var p = bannerPieces[i];
             if (p) p.classList.remove('is-idle-visible');
@@ -453,6 +438,10 @@
         scatterShownCount = 0;
         correctedShownCount = 0;
         stopIdleAnim();
+        if (idleRestartTimer) {
+            clearTimeout(idleRestartTimer);
+            idleRestartTimer = null;
+        }
 
         var frag = document.getElementById('bannerFragments');
         var finalImg = document.getElementById('bannerFinalImage');
@@ -467,13 +456,7 @@
 
         engageScrollLock();
         buildBannerFragments();
-
-        // ★ 启动 idle 动画（阶段 0 的初始状态）
-        startIdleAnim();
-
-        // 保留 applyBannerStep(0) 的设置（比如 scroll-lock、header 隐藏），
-        // 但不要覆盖 idle 效果，所以这里只做最小初始化。
-        document.body.classList.toggle('banner-step6', false);
+        applyBannerStep(0);
     }
 
     function applyBannerStep(step) {
@@ -481,8 +464,14 @@
         var frag = document.getElementById('bannerFragments');
         var bannerEl = document.getElementById('banner');
 
-        // ★ 一旦进入滚轮流程，停止 idle 动画
-        stopIdleAnim();
+        // ★ 进入 ≥1 阶段才停止 idle；阶段 0 保留 idle
+        if (step >= 1) {
+            stopIdleAnim();
+        }
+        if (idleRestartTimer) {
+            clearTimeout(idleRestartTimer);
+            idleRestartTimer = null;
+        }
 
         if (step < 2 && correctedShownCount > 0) {
             for (var u = 0; u < correctedShownCount; u++) uncorrectPiece(correctOrder[u]);
@@ -497,8 +486,18 @@
         bannerStep = step;
 
         if (step === 0) {
-            scatterShownCount = randInt(5, 9);
-            showScattered(scatterShownCount);
+            // ★ 阶段 0：清空 scattered/corrected，保留 idle-visible（虽然此刻还没加）
+            for (var ci = 0; ci < FRAG_TOTAL; ci++) {
+                var pc = bannerPieces[ci];
+                if (!pc) continue;
+                pc.classList.remove('is-visible', 'is-scattered', 'is-corrected');
+            }
+            scatterShownCount = 0;
+            // ★ 延迟 2 秒启动 idle
+            idleRestartTimer = setTimeout(function() {
+                idleRestartTimer = null;
+                startIdleAnim();
+            }, 2000);
         } else if (step === 1) {
             scatterShownCount = Math.min(FRAG_TOTAL, scatterShownCount + randInt(4, 9));
             showScattered(scatterShownCount);
@@ -767,8 +766,12 @@
         e.preventDefault();
         if (bannerWheelCooldown) return;
 
-        // ★ 一旦滚轮，立即停止 idle
+        // ★ 一旦滚轮，立即停止 idle（包括延迟启动）
         stopIdleAnim();
+        if (idleRestartTimer) {
+            clearTimeout(idleRestartTimer);
+            idleRestartTimer = null;
+        }
 
         bannerWheelAccum += e.deltaY;
         if (Math.abs(bannerWheelAccum) >= BANNER_WHEEL_THRESHOLD) {
@@ -787,8 +790,11 @@
         if (bannerScrollReleased || !isHomeActive() || bannerTouchStartY === null) return;
         e.preventDefault();
         if (bannerWheelCooldown) return;
-        // ★ 触屏也停止 idle
         stopIdleAnim();
+        if (idleRestartTimer) {
+            clearTimeout(idleRestartTimer);
+            idleRestartTimer = null;
+        }
         var dy = bannerTouchStartY - e.touches[0].clientY;
         if (Math.abs(dy) >= 40) {
             stepBanner(dy > 0 ? 1 : -1);
