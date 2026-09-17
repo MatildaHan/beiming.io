@@ -137,6 +137,23 @@
     var FRAG_ROWS = 4;
     var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS; // 24
 
+    var bannerNaturalW = 0;
+    var bannerNaturalH = 0;
+    var bannerImageLoaded = false;
+
+    function loadBannerImageMeta(callback) {
+        if (bannerImageLoaded) { callback(); return; }
+        var img = new Image();
+        img.onload = function() {
+            bannerNaturalW = img.naturalWidth;
+            bannerNaturalH = img.naturalHeight;
+            bannerImageLoaded = true;
+            callback();
+        };
+        img.onerror = function() { callback(); };
+        img.src = BANNER_IMG;
+    }
+
     var bannerStep = 0;
     var bannerScrollReleased = false;
     var bannerPieces = [];
@@ -198,26 +215,43 @@
         correctOrder = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
         scatterOrder = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
 
-        layoutFragmentBackgrounds();
+        layoutFragmentBackgrounds(); // 先用兜底铺满，避免图片未加载完时空白
+        loadBannerImageMeta(layoutFragmentBackgrounds); // 拿到原图真实比例后，按 cover 方式精确重排
     }
 
     // 用绝对像素设置每张碎片的背景尺寸/位置，与碎片自身盒子大小（含重叠）解耦，
-    // 保证碎片始终按原图 1:1 精确裁切，不会因为盒子重叠或缩放而变形。
+    // 并按原图真实宽高比复刻 background-size:cover 的裁切方式（而非拉伸铺满），
+    // 保证碎片阶段与最终整图阶段呈现完全一致、无变形。
     function layoutFragmentBackgrounds() {
         var banner = document.getElementById('banner');
         if (!banner || !bannerPieces.length) return;
         var rect = banner.getBoundingClientRect();
         var w = rect.width, h = rect.height;
         if (!w || !h) return;
+
+        var renderedW, renderedH, offsetX, offsetY;
+        if (bannerImageLoaded && bannerNaturalW && bannerNaturalH) {
+            var coverScale = Math.max(w / bannerNaturalW, h / bannerNaturalH);
+            renderedW = bannerNaturalW * coverScale;
+            renderedH = bannerNaturalH * coverScale;
+            offsetX = (w - renderedW) / 2;
+            offsetY = (h - renderedH) / 2;
+        } else {
+            // 图片尺寸未知前的兜底：先按容器铺满，加载完成后会自动重新校正
+            renderedW = w; renderedH = h; offsetX = 0; offsetY = 0;
+        }
+
         var pieceW = w / FRAG_COLS;
         var pieceH = h / FRAG_ROWS;
-        var sizeStr = w + 'px ' + h + 'px';
+        var sizeStr = renderedW + 'px ' + renderedH + 'px';
         for (var row = 0; row < FRAG_ROWS; row++) {
             for (var col = 0; col < FRAG_COLS; col++) {
                 var piece = bannerPieces[row * FRAG_COLS + col];
                 if (!piece) continue;
+                var px = col * pieceW;
+                var py = row * pieceH;
                 piece.style.backgroundSize = sizeStr;
-                piece.style.backgroundPosition = (-(col * pieceW)) + 'px ' + (-(row * pieceH)) + 'px';
+                piece.style.backgroundPosition = (offsetX - px) + 'px ' + (offsetY - py) + 'px';
             }
         }
     }
@@ -426,16 +460,16 @@
         return {
             x: Math.random() * (w + 260) - 130,
             y: randomY ? Math.random() * h : -30 - Math.random() * 60,
-            len: 34 + Math.random() * 48,          // 更长
-            speed: 7 + Math.random() * 8,
-            drift: -(2.4 + Math.random() * 3.6),
+            len: 34 + Math.random() * 48,
+            speed: 4 + Math.random() * 4.5,        // 速度放慢
+            drift: -(1.4 + Math.random() * 2.2),   // 水平漂移也相应放慢
             opacity: 0.2 + Math.random() * 0.45,
             splashed: false
         };
     }
 
     function seedRainParticles(w, h) {
-        var count = 70; // 数量减少
+        var count = 42; // 数量再减少
         rainParticles = [];
         rainSplashes = [];
         for (var i = 0; i < count; i++) {
@@ -443,14 +477,21 @@
         }
     }
 
+    // 落地水花：打碎成若干小碎点，向四面（主要向上）飞散后受重力回落、淡出消失
     function spawnRainSplash(x, y) {
-        rainSplashes.push({
-            x: x,
-            y: y,
-            r: 1,
-            maxR: 7 + Math.random() * 7,
-            life: 1
-        });
+        var count = 5 + Math.floor(Math.random() * 4); // 5~8 个碎点
+        for (var i = 0; i < count; i++) {
+            var angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5;
+            var speed = 1 + Math.random() * 2.2;
+            rainSplashes.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                r: 0.8 + Math.random() * 1.3,
+                life: 1
+            });
+        }
     }
 
     function stepRain() {
@@ -484,21 +525,22 @@
             }
         }
 
-        // 落地水花：向上散开的短弧线，随时间扩大并淡出
+        // 水花碎点：向四面飞散，受重力下坠并逐渐淡出消失
+        rainCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         for (var s = rainSplashes.length - 1; s >= 0; s--) {
             var sp = rainSplashes[s];
-            sp.r += (sp.maxR - sp.r) * 0.22 + 0.4;
-            sp.life -= 0.055;
+            sp.vy += 0.16; // 重力
+            sp.x += sp.vx;
+            sp.y += sp.vy;
+            sp.life -= 0.045;
             if (sp.life <= 0) {
                 rainSplashes.splice(s, 1);
                 continue;
             }
-            rainCtx.globalAlpha = Math.max(sp.life, 0) * 0.55;
-            rainCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-            rainCtx.lineWidth = 1.2;
+            rainCtx.globalAlpha = Math.max(sp.life, 0) * 0.85;
             rainCtx.beginPath();
-            rainCtx.ellipse(sp.x, sp.y, sp.r, sp.r * 0.38, 0, Math.PI, 2 * Math.PI);
-            rainCtx.stroke();
+            rainCtx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2);
+            rainCtx.fill();
         }
 
         rainCtx.globalAlpha = 1;
