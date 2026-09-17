@@ -552,18 +552,6 @@ body.banner-scroll-lock {
     box-sizing: border-box;
     position: relative;
 }
-/* 版心左右分割线 */
-.home-footer::before,
-.home-footer::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: rgba(153, 153, 153, 0.5);
-}
-.home-footer::before { left: calc(50% - 720px); }
-.home-footer::after  { right: calc(50% - 720px); }
 
 .home-footer-inner {
     display: flex;
@@ -627,10 +615,6 @@ body.banner-scroll-lock {
         margin-left: -40px;
         margin-right: -40px;
         padding: 60px 40px 80px;
-    }
-    .home-footer::before,
-    .home-footer::after {
-        display: none;
     }
 }
 @media (max-width: 768px) {
