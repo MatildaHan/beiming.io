@@ -548,16 +548,42 @@ body.banner-scroll-lock {
     width: calc(100% + 120px);
     margin-left: -60px;
     margin-right: -60px;
+    height: 500px;                 /* ★ 固定高度 500px */
     padding: 60px 60px 80px;
     box-sizing: border-box;
     position: relative;
+    overflow: hidden;
+
+    /* ★ 背景图 */
+    background-image: url('images/footer.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: #0C0A09;
 }
 
+/* 遮罩 + 模糊层 */
+.home-footer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(12, 10, 9, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* 内容在遮罩之上，垂直居中 */
 .home-footer-inner {
+    position: relative;
+    z-index: 1;
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;           /* ★ 内容垂直居中 */
     gap: 60px;
+    width: 100%;
+    height: 100%;
 }
 
 /* 左侧：网站名称 + 描述 */
@@ -573,12 +599,14 @@ body.banner-scroll-lock {
     letter-spacing: 3px;
     line-height: 1.2;
     font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 .home-footer-desc {
     font-size: 13px;
-    color: #999999;
+    color: #cccccc;
     letter-spacing: 0.5px;
     line-height: 1.8;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 /* 右侧：存活时长 + 最后更新 */
@@ -587,23 +615,23 @@ body.banner-scroll-lock {
     flex-direction: column;
     gap: 14px;
     align-items: flex-end;
-    padding-top: 6px;
 }
 .home-footer-row {
     display: flex;
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #999999;
+    color: #cccccc;
     letter-spacing: 0.5px;
     white-space: nowrap;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 .home-footer-row .footer-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 14px;
-    color: #999999;
+    color: #cccccc;
     width: 16px;
     text-align: center;
 }
@@ -622,11 +650,14 @@ body.banner-scroll-lock {
         width: calc(100% + 40px);
         margin-left: -20px;
         margin-right: -20px;
+        height: auto;                  /* ★ 移动端高度自适应 */
+        min-height: 400px;
         padding: 40px 20px 60px;
     }
     .home-footer-inner {
         flex-direction: column;
         align-items: flex-start;
+        justify-content: center;       /* ★ 垂直居中 */
         gap: 28px;
     }
     .home-footer-name {
@@ -634,13 +665,11 @@ body.banner-scroll-lock {
     }
     .home-footer-right {
         align-items: flex-start;
-        padding-top: 0;
     }
     .home-footer-row {
         white-space: normal;
     }
 }
-
 /* ============================================================
    随笔页面
    ============================================================ */
