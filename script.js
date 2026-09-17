@@ -180,13 +180,11 @@
                 piece.className = 'banner-piece';
                 piece.style.left = (col / FRAG_COLS * 100) + '%';
                 piece.style.top = (row / FRAG_ROWS * 100) + '%';
-                // ★ 用纯百分比，不加 2px，避免不同缩放下的错位
-                piece.style.width = (100 / FRAG_COLS) + '%';
-                piece.style.height = (100 / FRAG_ROWS) + '%';
+                // 宽高各多留 2px 重叠，遮盖接缝；背景定位改用绝对像素（见 layoutFragmentBackgrounds），
+                // 不再随盒子尺寸变化而拉伸，因此重叠不会造成图像变形
+                piece.style.width = 'calc(' + (100 / FRAG_COLS) + '% + 2px)';
+                piece.style.height = 'calc(' + (100 / FRAG_ROWS) + '% + 2px)';
                 piece.style.backgroundImage = 'url(' + BANNER_IMG + ')';
-                piece.style.backgroundSize = (FRAG_COLS * 100) + '% ' + (FRAG_ROWS * 100) + '%';
-                piece.style.backgroundPosition =
-                    (col / (FRAG_COLS - 1) * 100) + '% ' + (row / (FRAG_ROWS - 1) * 100) + '%';
                 wrap.appendChild(piece);
                 bannerPieces[idx] = piece;
 
@@ -199,6 +197,29 @@
 
         correctOrder = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
         scatterOrder = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
+
+        layoutFragmentBackgrounds();
+    }
+
+    // 用绝对像素设置每张碎片的背景尺寸/位置，与碎片自身盒子大小（含重叠）解耦，
+    // 保证碎片始终按原图 1:1 精确裁切，不会因为盒子重叠或缩放而变形。
+    function layoutFragmentBackgrounds() {
+        var banner = document.getElementById('banner');
+        if (!banner || !bannerPieces.length) return;
+        var rect = banner.getBoundingClientRect();
+        var w = rect.width, h = rect.height;
+        if (!w || !h) return;
+        var pieceW = w / FRAG_COLS;
+        var pieceH = h / FRAG_ROWS;
+        var sizeStr = w + 'px ' + h + 'px';
+        for (var row = 0; row < FRAG_ROWS; row++) {
+            for (var col = 0; col < FRAG_COLS; col++) {
+                var piece = bannerPieces[row * FRAG_COLS + col];
+                if (!piece) continue;
+                piece.style.backgroundSize = sizeStr;
+                piece.style.backgroundPosition = (-(col * pieceW)) + 'px ' + (-(row * pieceH)) + 'px';
+            }
+        }
     }
 
     function setPieceScattered(idx) {
@@ -375,6 +396,7 @@
     var rainCanvas = null;
     var rainCtx = null;
     var rainParticles = [];
+    var rainSplashes = [];
     var rainAnimId = null;
     var rainRunning = false;
 
@@ -404,19 +426,31 @@
         return {
             x: Math.random() * (w + 260) - 130,
             y: randomY ? Math.random() * h : -30 - Math.random() * 60,
-            len: 28 + Math.random() * 42,          // ★ 加长：28~70
-            speed: 6 + Math.random() * 7,
-            drift: -(2.2 + Math.random() * 3.2),
-            opacity: 0.18 + Math.random() * 0.42   // ★ 略提透明度
+            len: 34 + Math.random() * 48,          // 更长
+            speed: 7 + Math.random() * 8,
+            drift: -(2.4 + Math.random() * 3.6),
+            opacity: 0.2 + Math.random() * 0.45,
+            splashed: false
         };
     }
 
     function seedRainParticles(w, h) {
-        var count = 150;
+        var count = 70; // 数量减少
         rainParticles = [];
+        rainSplashes = [];
         for (var i = 0; i < count; i++) {
             rainParticles.push(makeRainParticle(w, h, true));
         }
+    }
+
+    function spawnRainSplash(x, y) {
+        rainSplashes.push({
+            x: x,
+            y: y,
+            r: 1,
+            maxR: 7 + Math.random() * 7,
+            life: 1
+        });
     }
 
     function stepRain() {
@@ -430,19 +464,43 @@
         for (var i = 0; i < rainParticles.length; i++) {
             var p = rainParticles[i];
             rainCtx.globalAlpha = p.opacity;
-            rainCtx.lineWidth = 3.5;               // ★ 加粗：1.3 → 3.5
+            rainCtx.lineWidth = 3.5;
             rainCtx.beginPath();
             rainCtx.moveTo(p.x, p.y);
             rainCtx.lineTo(p.x + p.drift * 1.8, p.y + p.len);
             rainCtx.stroke();
             p.x += p.drift;
             p.y += p.speed;
+
+            if (!p.splashed && p.y >= h - 4) {
+                spawnRainSplash(p.x, h - 2);
+                p.splashed = true;
+            }
             if (p.y > h + 30 || p.x < -150) {
                 var np = makeRainParticle(w, h, false);
                 p.x = np.x; p.y = np.y; p.len = np.len;
                 p.speed = np.speed; p.drift = np.drift; p.opacity = np.opacity;
+                p.splashed = false;
             }
         }
+
+        // 落地水花：向上散开的短弧线，随时间扩大并淡出
+        for (var s = rainSplashes.length - 1; s >= 0; s--) {
+            var sp = rainSplashes[s];
+            sp.r += (sp.maxR - sp.r) * 0.22 + 0.4;
+            sp.life -= 0.055;
+            if (sp.life <= 0) {
+                rainSplashes.splice(s, 1);
+                continue;
+            }
+            rainCtx.globalAlpha = Math.max(sp.life, 0) * 0.55;
+            rainCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            rainCtx.lineWidth = 1.2;
+            rainCtx.beginPath();
+            rainCtx.ellipse(sp.x, sp.y, sp.r, sp.r * 0.38, 0, Math.PI, 2 * Math.PI);
+            rainCtx.stroke();
+        }
+
         rainCtx.globalAlpha = 1;
         rainAnimId = requestAnimationFrame(stepRain);
     }
@@ -463,6 +521,7 @@
             cancelAnimationFrame(rainAnimId);
             rainAnimId = null;
         }
+        rainSplashes = [];
         var wrap = document.getElementById('bannerRainWrap');
         if (wrap) wrap.classList.remove('rain-active');
         if (rainCtx && rainCanvas) {
@@ -792,6 +851,7 @@
 
     window.addEventListener('resize', function() {
         updateHeaderHeight();
+        layoutFragmentBackgrounds();
     });
 
 })();
