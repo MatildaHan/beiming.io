@@ -143,8 +143,8 @@
     var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS;
 
     // ★ 初始状态约束
-    var IDLE_MAX_ROTATION = 10;        // 倾斜角度 ±10°
-    var IDLE_EDGE_MARGIN = 100;        // 距离屏幕边缘 100px
+    var IDLE_MAX_ROTATION = 10;   // 倾斜角度 ±10°
+    var IDLE_EDGE_MARGIN = 100;   // 距离屏幕边缘 100px
 
     var bannerNaturalW = 0;
     var bannerNaturalH = 0;
@@ -190,38 +190,40 @@
         return Math.floor(randRange(min, max + 1));
     }
 
-    // ★ 计算某个碎片在"散落态"下的合法偏移范围（不超屏 + 边缘 100px）
-    // 返回 { minX, maxX, minY, maxY }（单位：px）
-    function calcScatterBounds(pieceW, pieceH) {
+    // ★ 核心：计算某个碎片允许的 translateX / translateY 范围（px）
+    // 约束：碎片最终边界（含 scale）必须在 [margin, screenW - margin] 内
+    function calcScatterBounds(pieceLeft, pieceTop, pieceW, pieceH, scale) {
         var vw = window.innerWidth;
         var vh = window.innerHeight;
         var m = IDLE_EDGE_MARGIN;
 
-        // 碎片本身宽高（考虑 scale 最大 1.1 的余量）
-        // 用中心点约束：中心点到左右边界的距离 >= m + 碎片半宽
-        var halfW = pieceW * 1.1 / 2;
-        var halfH = pieceH * 1.1 / 2;
+        // 碎片当前中心（未加 translate 前）
+        var centerX = pieceLeft + pieceW / 2;
+        var centerY = pieceTop + pieceH / 2;
 
-        // 碎片中心相对 banner 中心的偏移范围
-        var cx = vw / 2;
-        var cy = vh / 2;
+        // 缩放后的半宽 / 半高
+        var halfW = pieceW * scale / 2;
+        var halfH = pieceH * scale / 2;
 
-        // 允许的最小/最大中心坐标（不超出屏幕 100px 边距）
-        var minCx = m + halfW;
-        var maxCx = vw - m - halfW;
-        var minCy = m + halfH;
-        var maxCy = vh - m - halfH;
+        // 允许的最终中心坐标范围
+        var minCenterX = m + halfW;
+        var maxCenterX = vw - m - halfW;
+        var minCenterY = m + halfH;
+        var maxCenterY = vh - m - halfH;
 
-        // 偏移 = 目标中心 - banner 中心
-        return {
-            minX: minCx - cx,
-            maxX: maxCx - cx,
-            minY: minCy - cy,
-            maxY: maxCy - cy
-        };
+        // translate = 允许中心 - 当前中心
+        var minX = minCenterX - centerX;
+        var maxX = maxCenterX - centerX;
+        var minY = minCenterY - centerY;
+        var maxY = maxCenterY - centerY;
+
+        // 边界情况：如果 min > max（碎片太大），则返回中心 0
+        if (minX > maxX) { minX = maxX = 0; }
+        if (minY > maxY) { minY = maxY = 0; }
+
+        return { minX: minX, maxX: maxX, minY: minY, maxY: maxY };
     }
 
-    // 给碎片写入 CSS 变量
     function applyScatterVars(piece, t) {
         piece.style.setProperty('--tile-x', t.offsetX + 'px');
         piece.style.setProperty('--tile-y', t.offsetY + 'px');
@@ -243,11 +245,14 @@
         bannerScatterTransform = [];
 
         var banner = document.getElementById('banner');
-        var bannerRect = banner ? banner.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
+        var bannerRect = banner ? banner.getBoundingClientRect() : {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            left: 0,
+            top: 0
+        };
         var pieceW = bannerRect.width / FRAG_COLS;
         var pieceH = bannerRect.height / FRAG_ROWS;
-        // ★ 计算偏移约束
-        var bounds = calcScatterBounds(pieceW, pieceH);
 
         for (var row = 0; row < FRAG_ROWS; row++) {
             for (var col = 0; col < FRAG_COLS; col++) {
@@ -265,14 +270,29 @@
                 piece.style.height = 'calc(' + (100 / FRAG_ROWS) + '% + 2px)';
                 piece.style.backgroundImage = 'url(' + BANNER_IMG + ')';
 
-                // ★ 随机散落参数（倾斜 ≤ 10°，偏移按像素约束）
+                // ★ 随机参数
+                var sc = randRange(0.85, 1.0);
+                var rot = randRange(-IDLE_MAX_ROTATION, IDLE_MAX_ROTATION);
+                var blur = randRange(8, 18);
+
+                // ★ 碎片在视口中的位置（未加 translate 前）
+                var pieceLeft = bannerRect.left + col * pieceW;
+                var pieceTop = bannerRect.top + row * pieceH;
+
+                // ★ 用碎片自身位置算偏移范围
+                var bounds = calcScatterBounds(pieceLeft, pieceTop, pieceW, pieceH, sc);
+
+                var tx = randRange(bounds.minX, bounds.maxX);
+                var ty = randRange(bounds.minY, bounds.maxY);
+
                 var t = {
-                    offsetX: randRange(bounds.minX, bounds.maxX),
-                    offsetY: randRange(bounds.minY, bounds.maxY),
-                    rotation: randRange(-IDLE_MAX_ROTATION, IDLE_MAX_ROTATION),
-                    scale: randRange(0.85, 1.0),   // 缩小一点，避免放大出界
-                    blur: randRange(8, 18)
+                    offsetX: tx,
+                    offsetY: ty,
+                    rotation: rot,
+                    scale: sc,
+                    blur: blur
                 };
+
                 piece.dataset.offsetX = t.offsetX.toFixed(3);
                 piece.dataset.offsetY = t.offsetY.toFixed(3);
                 piece.dataset.rotation = t.rotation.toFixed(3);
@@ -281,7 +301,6 @@
 
                 applyScatterVars(piece, t);
 
-                // 应用 transform（像素）
                 piece.style.transform =
                     'translate(' + t.offsetX + 'px, ' + t.offsetY + 'px) ' +
                     'rotate(' + t.rotation + 'deg) ' +
@@ -336,7 +355,44 @@
         }
     }
 
-    // 散落态：直接用像素偏移
+    // ★ resize 时重新计算偏移约束（保持不超屏）
+    function recalcScatterTransforms() {
+        var banner = document.getElementById('banner');
+        if (!banner || !bannerPieces.length) return;
+        var bannerRect = banner.getBoundingClientRect();
+        var pieceW = bannerRect.width / FRAG_COLS;
+        var pieceH = bannerRect.height / FRAG_ROWS;
+
+        for (var row = 0; row < FRAG_ROWS; row++) {
+            for (var col = 0; col < FRAG_COLS; col++) {
+                var idx = row * FRAG_COLS + col;
+                var piece = bannerPieces[idx];
+                if (!piece) continue;
+
+                var pieceLeft = bannerRect.left + col * pieceW;
+                var pieceTop = bannerRect.top + row * pieceH;
+                var sc = parseFloat(piece.dataset.scale) || 1;
+                var bounds = calcScatterBounds(pieceLeft, pieceTop, pieceW, pieceH, sc);
+
+                var curX = parseFloat(piece.dataset.offsetX) || 0;
+                var curY = parseFloat(piece.dataset.offsetY) || 0;
+                var newX = Math.max(bounds.minX, Math.min(bounds.maxX, curX));
+                var newY = Math.max(bounds.minY, Math.min(bounds.maxY, curY));
+
+                piece.dataset.offsetX = newX.toFixed(3);
+                piece.dataset.offsetY = newY.toFixed(3);
+
+                var rot = parseFloat(piece.dataset.rotation) || 0;
+                if (!piece.classList.contains('is-corrected')) {
+                    piece.style.transform =
+                        'translate(' + newX + 'px, ' + newY + 'px) ' +
+                        'rotate(' + rot + 'deg) ' +
+                        'scale(' + sc + ')';
+                }
+            }
+        }
+    }
+
     function setPieceScattered(idx) {
         var piece = bannerPieces[idx];
         if (!piece || piece.classList.contains('is-corrected')) return;
@@ -1072,6 +1128,8 @@
     window.addEventListener('resize', function() {
         updateHeaderHeight();
         layoutFragmentBackgrounds();
+        // ★ resize 时重算散落偏移（保持边缘 100px 限制）
+        recalcScatterTransforms();
     });
 
 })();
