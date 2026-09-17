@@ -42,6 +42,8 @@
             document.body.classList.remove('banner-step6');
             document.body.classList.remove('scrolled');
             if (typeof releaseScrollLock === 'function') releaseScrollLock();
+            // ★ 离开首页：停止 idle 定时器
+            stopIdleAnim();
         }
 
         updateHeaderHeight();
@@ -111,7 +113,7 @@
     }
 
     // ============================================================
-    // 滚出首屏后 header 加实心背景（仅首页）
+    // 滚出首屏后 header 加实心背景
     // ============================================================
     function initHeaderScroll() {
         var banner = document.getElementById('banner');
@@ -130,12 +132,12 @@
     }
 
     // ============================================================
-    // Banner 初始化 —— 碎片拼图 + 滚轮分步动画
+    // Banner 初始化
     // ============================================================
     var BANNER_IMG = 'images/0916.jpg';
     var FRAG_COLS = 6;
     var FRAG_ROWS = 4;
-    var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS; // 24
+    var FRAG_TOTAL = FRAG_COLS * FRAG_ROWS;
 
     var bannerNaturalW = 0;
     var bannerNaturalH = 0;
@@ -157,11 +159,14 @@
     var bannerStep = 0;
     var bannerScrollReleased = false;
     var bannerPieces = [];
-    var bannerScatterTransform = [];
+    var bannerScatterTransform = [];   // 保留兼容（阶段 2-5 的归位仍用到）
     var correctOrder = [];
     var scatterOrder = [];
     var scatterShownCount = 0;
     var correctedShownCount = 0;
+
+    // ★ 新增：idle 定时器
+    var idleTimer = null;
 
     function shuffleArray(arr) {
         var a = arr.slice();
@@ -176,6 +181,34 @@
     }
     function randInt(min, max) {
         return Math.floor(randRange(min, max + 1));
+    }
+
+    // ★ 新增：给碎片写入 CSS 变量（散落态参数）
+    function applyScatterVars(piece, t) {
+        piece.style.setProperty('--tile-x', t.offsetX + '%');
+        piece.style.setProperty('--tile-y', t.offsetY + '%');
+        piece.style.setProperty('--tile-rotation', t.rotation + 'deg');
+        piece.style.setProperty('--tile-scale', t.scale);
+        piece.style.setProperty('--tile-blur', t.blur + 'px');
+    }
+
+    // ★ 新增：把 CSS 变量拼成 transform 应用到碎片（散落态）
+    // 注意：碎片自身的宽高是相对于父级 banner 的百分比，
+    // translate 用 vw/vh 会跳出，因此这里把百分比换算成像素，
+    // 让初始态与后续滚动逻辑的视觉一致。
+    function applyScatterTransform(piece) {
+        var banner = document.getElementById('banner');
+        if (!banner) return;
+        var rect = banner.getBoundingClientRect();
+        var bw = rect.width, bh = rect.height;
+        var xPct = parseFloat(piece.style.getPropertyValue('--tile-x')) || 0;
+        var yPct = parseFloat(piece.style.getPropertyValue('--tile-y')) || 0;
+        var rot = piece.style.getPropertyValue('--tile-rotation') || '0deg';
+        var sc = piece.style.getPropertyValue('--tile-scale') || '1';
+        var px = xPct / 100 * bw;
+        var py = yPct / 100 * bh;
+        piece.style.transform =
+            'translate(' + px + 'px, ' + py + 'px) rotate(' + rot + ') scale(' + sc + ')';
     }
 
     function buildBannerFragments() {
@@ -195,33 +228,63 @@
                 var idx = row * FRAG_COLS + col;
                 var piece = document.createElement('div');
                 piece.className = 'banner-piece';
+
+                // ★ 新增：写入 data-* 属性
+                piece.dataset.row = row;
+                piece.dataset.column = col;
+                piece.dataset.order = idx;
+
                 piece.style.left = (col / FRAG_COLS * 100) + '%';
                 piece.style.top = (row / FRAG_ROWS * 100) + '%';
-                // 宽高各多留 2px 重叠，遮盖接缝；背景定位改用绝对像素（见 layoutFragmentBackgrounds），
-                // 不再随盒子尺寸变化而拉伸，因此重叠不会造成图像变形
                 piece.style.width = 'calc(' + (100 / FRAG_COLS) + '% + 2px)';
                 piece.style.height = 'calc(' + (100 / FRAG_ROWS) + '% + 2px)';
                 piece.style.backgroundImage = 'url(' + BANNER_IMG + ')';
+
+                // ★ 随机散落参数（存进 data-* 与 CSS 变量）
+                var t = {
+                    offsetX: randRange(-70, 70),
+                    offsetY: randRange(-60, 60),
+                    rotation: randRange(-55, 55),
+                    scale: randRange(0.75, 1.1),
+                    blur: randRange(3, 8)
+                };
+                piece.dataset.offsetX = t.offsetX.toFixed(3);
+                piece.dataset.offsetY = t.offsetY.toFixed(3);
+                piece.dataset.rotation = t.rotation.toFixed(3);
+                piece.dataset.scale = t.scale.toFixed(3);
+                piece.dataset.blur = t.blur.toFixed(3);
+
+                // 应用 CSS 变量 + transform
+                applyScatterVars(piece, t);
+                // 用 JS 立即应用 transform（避免下一帧才生效）
+                var banner = document.getElementById('banner');
+                if (banner) {
+                    var rect = banner.getBoundingClientRect();
+                    var px = t.offsetX / 100 * rect.width;
+                    var py = t.offsetY / 100 * rect.height;
+                    piece.style.transform =
+                        'translate(' + px + 'px, ' + py + 'px) ' +
+                        'rotate(' + t.rotation + 'deg) ' +
+                        'scale(' + t.scale + ')';
+                }
+
+                // 保留旧的字符串形式（阶段 2-5 归位仍用）
+                bannerScatterTransform[idx] =
+                    'translate(' + t.offsetX + 'vw, ' + t.offsetY + 'vh) ' +
+                    'rotate(' + t.rotation + 'deg) scale(' + t.scale + ')';
+
                 wrap.appendChild(piece);
                 bannerPieces[idx] = piece;
-
-                // 随机散落 transform（范围较大，更分散）
-                bannerScatterTransform[idx] =
-                    'translate(' + randRange(-70, 70) + 'vw, ' + randRange(-60, 60) + 'vh) ' +
-                    'rotate(' + randRange(-55, 55) + 'deg) scale(' + randRange(0.75, 1.1) + ')';
             }
         }
 
         correctOrder = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
         scatterOrder = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
 
-        layoutFragmentBackgrounds(); // 先用兜底铺满，避免图片未加载完时空白
-        loadBannerImageMeta(layoutFragmentBackgrounds); // 拿到原图真实比例后，按 cover 方式精确重排
+        layoutFragmentBackgrounds();
+        loadBannerImageMeta(layoutFragmentBackgrounds);
     }
 
-    // 用绝对像素设置每张碎片的背景尺寸/位置，与碎片自身盒子大小（含重叠）解耦，
-    // 并按原图真实宽高比复刻 background-size:cover 的裁切方式（而非拉伸铺满），
-    // 保证碎片阶段与最终整图阶段呈现完全一致、无变形。
     function layoutFragmentBackgrounds() {
         var banner = document.getElementById('banner');
         if (!banner || !bannerPieces.length) return;
@@ -237,7 +300,6 @@
             offsetX = (w - renderedW) / 2;
             offsetY = (h - renderedH) / 2;
         } else {
-            // 图片尺寸未知前的兜底：先按容器铺满，加载完成后会自动重新校正
             renderedW = w; renderedH = h; offsetX = 0; offsetY = 0;
         }
 
@@ -256,10 +318,25 @@
         }
     }
 
+    // ★ 修改：setPieceScattered 使用 CSS 变量
     function setPieceScattered(idx) {
         var piece = bannerPieces[idx];
         if (!piece || piece.classList.contains('is-corrected')) return;
-        piece.style.transform = bannerScatterTransform[idx];
+        // 移除 idle 标记（如果是从 idle 状态进入）
+        piece.classList.remove('is-idle-visible');
+        // 用已存的 transform（散落态）
+        var banner = document.getElementById('banner');
+        if (banner) {
+            var rect = banner.getBoundingClientRect();
+            var xPct = parseFloat(piece.dataset.offsetX) || 0;
+            var yPct = parseFloat(piece.dataset.offsetY) || 0;
+            var rot = parseFloat(piece.dataset.rotation) || 0;
+            var sc = parseFloat(piece.dataset.scale) || 1;
+            piece.style.transform =
+                'translate(' + (xPct / 100 * rect.width) + 'px, ' + (yPct / 100 * rect.height) + 'px) ' +
+                'rotate(' + rot + 'deg) ' +
+                'scale(' + sc + ')';
+        }
         piece.classList.add('is-visible', 'is-scattered');
     }
 
@@ -267,9 +344,9 @@
         var piece = bannerPieces[idx];
         if (!piece) return;
         piece.classList.remove('is-scattered');
+        piece.classList.remove('is-idle-visible');   // ★ 确保归位时清理 idle 状态
 
         if (!piece.classList.contains('is-visible')) {
-            // 之前隐藏：先给一个柔和起始态，再过渡到正确位置
             piece.style.transform = 'translate(0, 0) rotate(0deg) scale(0.92)';
             void piece.offsetWidth;
             requestAnimationFrame(function() {
@@ -277,7 +354,6 @@
                 piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
             });
         } else {
-            // 之前是散落：直接飞入
             piece.classList.add('is-visible', 'is-corrected');
             piece.style.transform = 'translate(0, 0) rotate(0deg) scale(1)';
         }
@@ -287,7 +363,7 @@
         var piece = bannerPieces[idx];
         if (!piece) return;
         piece.classList.remove('is-corrected', 'is-visible');
-        piece.style.transform = bannerScatterTransform[idx];
+        setPieceScattered(idx);
     }
 
     function clearLooseScatteredPieces() {
@@ -298,6 +374,8 @@
             if (piece.classList.contains('is-scattered')) {
                 piece.classList.remove('is-visible', 'is-scattered');
             }
+            // ★ 清理 idle 状态
+            piece.classList.remove('is-idle-visible');
         }
     }
 
@@ -308,11 +386,74 @@
         for (var i = 0; i < count; i++) setPieceCorrected(correctOrder[i]);
     }
 
+    // ============================================================
+    // ★ 新增：idle 状态 —— 初始随机显示 + 每 0.5s 增/减
+    // ============================================================
+    function startIdleAnim() {
+        stopIdleAnim();
+
+        // 1. 初始随机选 ~30% 碎片加 is-idle-visible
+        var idleCount = Math.max(4, Math.floor(FRAG_TOTAL * 0.3));
+        var pool = shuffleArray(Array.from({ length: FRAG_TOTAL }, function(_, i) { return i; }));
+        for (var i = 0; i < idleCount; i++) {
+            var piece = bannerPieces[pool[i]];
+            if (piece) piece.classList.add('is-idle-visible');
+        }
+
+        // 2. 每 500ms 随机增/减
+        idleTimer = setInterval(function() {
+            // 随机增：把 1~3 个当前不可见的碎片加上 idle-visible
+            var hidden = [];
+            for (var k = 0; k < FRAG_TOTAL; k++) {
+                var p = bannerPieces[k];
+                if (!p) continue;
+                if (!p.classList.contains('is-idle-visible')
+                    && !p.classList.contains('is-corrected')
+                    && !p.classList.contains('is-scattered')) {
+                    hidden.push(k);
+                }
+            }
+            var addCount = Math.min(hidden.length, randInt(1, 3));
+            var addPool = shuffleArray(hidden);
+            for (var a = 0; a < addCount; a++) {
+                bannerPieces[addPool[a]].classList.add('is-idle-visible');
+            }
+
+            // 随机减：把 1~2 个当前 idle-visible 的碎片移除
+            var visible = [];
+            for (var m = 0; m < FRAG_TOTAL; m++) {
+                var q = bannerPieces[m];
+                if (q && q.classList.contains('is-idle-visible')) {
+                    visible.push(m);
+                }
+            }
+            var removeCount = Math.min(visible.length, randInt(1, 2));
+            var removePool = shuffleArray(visible);
+            for (var r = 0; r < removeCount; r++) {
+                bannerPieces[removePool[r]].classList.remove('is-idle-visible');
+            }
+        }, 500);
+    }
+
+    function stopIdleAnim() {
+        if (idleTimer) {
+            clearInterval(idleTimer);
+            idleTimer = null;
+        }
+        // 清理所有 idle 状态
+        for (var i = 0; i < bannerPieces.length; i++) {
+            var p = bannerPieces[i];
+            if (p) p.classList.remove('is-idle-visible');
+        }
+    }
+
     function resetBannerAnimation() {
         bannerStep = 0;
         bannerScrollReleased = false;
         scatterShownCount = 0;
         correctedShownCount = 0;
+        stopIdleAnim();
+
         var frag = document.getElementById('bannerFragments');
         var finalImg = document.getElementById('bannerFinalImage');
         var overlay = document.getElementById('bannerOverlay');
@@ -326,13 +467,22 @@
 
         engageScrollLock();
         buildBannerFragments();
-        applyBannerStep(0);
+
+        // ★ 启动 idle 动画（阶段 0 的初始状态）
+        startIdleAnim();
+
+        // 保留 applyBannerStep(0) 的设置（比如 scroll-lock、header 隐藏），
+        // 但不要覆盖 idle 效果，所以这里只做最小初始化。
+        document.body.classList.toggle('banner-step6', false);
     }
 
     function applyBannerStep(step) {
         var prevStep = bannerStep;
         var frag = document.getElementById('bannerFragments');
         var bannerEl = document.getElementById('banner');
+
+        // ★ 一旦进入滚轮流程，停止 idle 动画
+        stopIdleAnim();
 
         if (step < 2 && correctedShownCount > 0) {
             for (var u = 0; u < correctedShownCount; u++) uncorrectPiece(correctOrder[u]);
@@ -369,7 +519,6 @@
             triggerBannerFinale();
         }
 
-        // 缩放：2-5 为 0.9；6 为 1
         if (frag) {
             if (step >= 2 && step <= 5) {
                 frag.classList.add('zoom-out');
@@ -382,7 +531,6 @@
             }
         }
 
-        // header 仅在步骤 6 显示
         document.body.classList.toggle('banner-step6', step === 6);
     }
 
@@ -425,7 +573,7 @@
     }
 
     // ============================================================
-    // Canvas 下雨（向左倾斜，雨点更大）
+    // Canvas 下雨
     // ============================================================
     var rainCanvas = null;
     var rainCtx = null;
@@ -461,15 +609,15 @@
             x: Math.random() * (w + 260) - 130,
             y: randomY ? Math.random() * h : -30 - Math.random() * 60,
             len: 34 + Math.random() * 48,
-            speed: 4 + Math.random() * 4.5,        // 速度放慢
-            drift: -(1.4 + Math.random() * 2.2),   // 水平漂移也相应放慢
+            speed: 4 + Math.random() * 4.5,
+            drift: -(1.4 + Math.random() * 2.2),
             opacity: 0.2 + Math.random() * 0.45,
             splashed: false
         };
     }
 
     function seedRainParticles(w, h) {
-        var count = 42; // 数量再减少
+        var count = 42;
         rainParticles = [];
         rainSplashes = [];
         for (var i = 0; i < count; i++) {
@@ -477,9 +625,8 @@
         }
     }
 
-    // 落地水花：打碎成若干小碎点，向四面（主要向上）飞散后受重力回落、淡出消失
     function spawnRainSplash(x, y) {
-        var count = 5 + Math.floor(Math.random() * 4); // 5~8 个碎点
+        var count = 5 + Math.floor(Math.random() * 4);
         for (var i = 0; i < count; i++) {
             var angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5;
             var speed = 1 + Math.random() * 2.2;
@@ -525,11 +672,10 @@
             }
         }
 
-        // 水花碎点：向四面飞散，受重力下坠并逐渐淡出消失
         rainCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         for (var s = rainSplashes.length - 1; s >= 0; s--) {
             var sp = rainSplashes[s];
-            sp.vy += 0.16; // 重力
+            sp.vy += 0.16;
             sp.x += sp.vx;
             sp.y += sp.vy;
             sp.life -= 0.045;
@@ -621,6 +767,9 @@
         e.preventDefault();
         if (bannerWheelCooldown) return;
 
+        // ★ 一旦滚轮，立即停止 idle
+        stopIdleAnim();
+
         bannerWheelAccum += e.deltaY;
         if (Math.abs(bannerWheelAccum) >= BANNER_WHEEL_THRESHOLD) {
             var dir = bannerWheelAccum > 0 ? 1 : -1;
@@ -638,6 +787,8 @@
         if (bannerScrollReleased || !isHomeActive() || bannerTouchStartY === null) return;
         e.preventDefault();
         if (bannerWheelCooldown) return;
+        // ★ 触屏也停止 idle
+        stopIdleAnim();
         var dy = bannerTouchStartY - e.touches[0].clientY;
         if (Math.abs(dy) >= 40) {
             stepBanner(dy > 0 ? 1 : -1);
