@@ -545,21 +545,28 @@ body.banner-scroll-lock {
    首页底部信息
    ============================================================ */
 .home-footer {
-    width: calc(100% + 120px);
-    margin-left: -60px;
-    margin-right: -60px;
-    height: 500px;                 /* ★ 固定高度 500px */
-    padding: 60px 60px 80px;
-    box-sizing: border-box;
-    position: relative;
-    overflow: hidden;
+    /* ★ 突破版心，铺满整屏 */
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
 
-    /* ★ 背景图 */
+    /* ★ 内容仍限制在版心（1440px）内 */
+    padding: 80px calc(50vw - 660px);   /* 660 = 720 - 60（版心/2 - 左右内边距） */
+    box-sizing: border-box;
+
+    /* 高度自适应 */
+    height: auto;
+    min-height: 300px;
+
+    /* 底图铺满整屏 */
     background-image: url('images/footer.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     background-color: #0C0A09;
+
+    position: relative;
+    overflow: hidden;
 }
 
 /* 遮罩 + 模糊层 */
@@ -574,16 +581,15 @@ body.banner-scroll-lock {
     pointer-events: none;
 }
 
-/* 内容在遮罩之上，垂直居中 */
+/* 内容在遮罩之上 */
 .home-footer-inner {
     position: relative;
     z-index: 1;
     display: flex;
     justify-content: space-between;
-    align-items: center;           /* ★ 内容垂直居中 */
+    align-items: center;
     gap: 60px;
     width: 100%;
-    height: 100%;
 }
 
 /* 左侧：网站名称 + 描述 */
@@ -639,26 +645,18 @@ body.banner-scroll-lock {
 /* 响应式 */
 @media (max-width: 1500px) {
     .home-footer {
-        width: calc(100% + 80px);
-        margin-left: -40px;
-        margin-right: -40px;
-        padding: 60px 40px 80px;
+        padding: 60px 40px;
     }
 }
 @media (max-width: 768px) {
     .home-footer {
-        width: calc(100% + 40px);
-        margin-left: -20px;
-        margin-right: -20px;
-        height: auto;                  /* ★ 移动端高度自适应 */
-        min-height: 400px;
-        padding: 40px 20px 60px;
+        padding: 40px 20px;
+        min-height: 260px;
     }
     .home-footer-inner {
         flex-direction: column;
         align-items: flex-start;
-        justify-content: center;       /* ★ 垂直居中 */
-        gap: 28px;
+        gap: 24px;
     }
     .home-footer-name {
         font-size: 24px;
