@@ -3,6 +3,13 @@
     var DB = window.DB;
 
     // ============================================================
+    // 站点上线时间（用于计算"本站已存活"）
+    // 格式：YYYY-MM-DD HH:MM:SS
+    // ★ 请改成你自己的上线时间
+    // ============================================================
+    var SITE_START_DATE = '2025-05-06 00:00:00';
+
+    // ============================================================
     // 站点信息
     // ============================================================
     async function getSite() {
@@ -37,6 +44,7 @@
         if (pageId === 'page-home') {
             document.body.classList.add('banner-mode');
             document.body.classList.toggle('banner-step6', bannerStep === 6);
+            startFooterTimer();   // ★ 进入首页：启动 footer 定时器
         } else {
             document.body.classList.remove('banner-mode');
             document.body.classList.remove('banner-step6');
@@ -47,6 +55,7 @@
                 clearTimeout(idleRestartTimer);
                 idleRestartTimer = null;
             }
+            stopFooterTimer();    // ★ 离开首页：停止 footer 定时器
         }
 
         updateHeaderHeight();
@@ -135,6 +144,91 @@
     }
 
     // ============================================================
+    // 首页底部信息
+    // ============================================================
+    var footerTimer = null;
+    var footerLastUpdateTimer = null;
+
+    // 格式化时长："X 天 X 时 X 分 X 秒"
+    function formatDuration(ms) {
+        if (ms < 0) ms = 0;
+        var totalSec = Math.floor(ms / 1000);
+        var d = Math.floor(totalSec / 86400);
+        var h = Math.floor((totalSec % 86400) / 3600);
+        var m = Math.floor((totalSec % 3600) / 60);
+        var s = totalSec % 60;
+        return d + ' 天 ' + h + ' 时 ' + m + ' 分 ' + s + ' 秒';
+    }
+
+    // 更新"本站已存活"
+    function updateFooterUptime() {
+        var el = document.getElementById('footerUptime');
+        if (!el) return;
+        var start = new Date(SITE_START_DATE.replace(/-/g, '/')).getTime();
+        if (isNaN(start)) { el.textContent = '本站已存活 —'; return; }
+        var now = Date.now();
+        el.textContent = '本站已存活 ' + formatDuration(now - start);
+    }
+
+    // 更新"最后更新于"
+    function updateFooterLastUpdate() {
+        var el = document.getElementById('footerLastUpdate');
+        if (!el) return;
+
+        Promise.all([
+            DB.getAll('suibi', { orderBy: 'id' }),
+            DB.getAll('zaji', { orderBy: 'id' })
+        ]).then(function(results) {
+            var latestTs = 0;
+            var lists = [results[0] || [], results[1] || []];
+            for (var i = 0; i < lists.length; i++) {
+                for (var j = 0; j < lists[i].length; j++) {
+                    var d = lists[i][j].date;
+                    if (!d) continue;
+                    var t = new Date(String(d).replace(/-/g, '/')).getTime();
+                    if (!isNaN(t) && t > latestTs) latestTs = t;
+                }
+            }
+            if (!latestTs) {
+                el.textContent = '最后更新于 —';
+                return;
+            }
+            var diff = Date.now() - latestTs;
+            var days = Math.floor(diff / 86400000);
+            var hours = Math.floor((diff % 86400000) / 3600000);
+            if (days > 0) {
+                el.textContent = '最后更新于 ' + days + ' 天前';
+            } else if (hours > 0) {
+                el.textContent = '最后更新于 ' + hours + ' 小时前';
+            } else {
+                el.textContent = '最后更新于 刚刚';
+            }
+        }).catch(function() {
+            el.textContent = '最后更新于 —';
+        });
+    }
+
+    // 启动 footer 定时器
+    function startFooterTimer() {
+        stopFooterTimer();
+        updateFooterUptime();
+        updateFooterLastUpdate();
+        footerTimer = setInterval(updateFooterUptime, 1000);
+        footerLastUpdateTimer = setInterval(updateFooterLastUpdate, 5 * 60 * 1000);
+    }
+
+    function stopFooterTimer() {
+        if (footerTimer) {
+            clearInterval(footerTimer);
+            footerTimer = null;
+        }
+        if (footerLastUpdateTimer) {
+            clearInterval(footerLastUpdateTimer);
+            footerLastUpdateTimer = null;
+        }
+    }
+
+    // ============================================================
     // Banner 初始化
     // ============================================================
     var BANNER_IMG = 'images/0916.jpg';
@@ -190,34 +284,28 @@
         return Math.floor(randRange(min, max + 1));
     }
 
-    // ★ 核心：计算某个碎片允许的 translateX / translateY 范围（px）
-    // 约束：碎片最终边界（含 scale）必须在 [margin, screenW - margin] 内
+    // ★ 计算碎片允许的 translateX / translateY 范围（px）
     function calcScatterBounds(pieceLeft, pieceTop, pieceW, pieceH, scale) {
         var vw = window.innerWidth;
         var vh = window.innerHeight;
         var m = IDLE_EDGE_MARGIN;
 
-        // 碎片当前中心（未加 translate 前）
         var centerX = pieceLeft + pieceW / 2;
         var centerY = pieceTop + pieceH / 2;
 
-        // 缩放后的半宽 / 半高
         var halfW = pieceW * scale / 2;
         var halfH = pieceH * scale / 2;
 
-        // 允许的最终中心坐标范围
         var minCenterX = m + halfW;
         var maxCenterX = vw - m - halfW;
         var minCenterY = m + halfH;
         var maxCenterY = vh - m - halfH;
 
-        // translate = 允许中心 - 当前中心
         var minX = minCenterX - centerX;
         var maxX = maxCenterX - centerX;
         var minY = minCenterY - centerY;
         var maxY = maxCenterY - centerY;
 
-        // 边界情况：如果 min > max（碎片太大），则返回中心 0
         if (minX > maxX) { minX = maxX = 0; }
         if (minY > maxY) { minY = maxY = 0; }
 
@@ -270,16 +358,13 @@
                 piece.style.height = 'calc(' + (100 / FRAG_ROWS) + '% + 2px)';
                 piece.style.backgroundImage = 'url(' + BANNER_IMG + ')';
 
-                // ★ 随机参数
                 var sc = randRange(0.85, 1.0);
                 var rot = randRange(-IDLE_MAX_ROTATION, IDLE_MAX_ROTATION);
                 var blur = randRange(8, 18);
 
-                // ★ 碎片在视口中的位置（未加 translate 前）
                 var pieceLeft = bannerRect.left + col * pieceW;
                 var pieceTop = bannerRect.top + row * pieceH;
 
-                // ★ 用碎片自身位置算偏移范围
                 var bounds = calcScatterBounds(pieceLeft, pieceTop, pieceW, pieceH, sc);
 
                 var tx = randRange(bounds.minX, bounds.maxX);
@@ -355,7 +440,6 @@
         }
     }
 
-    // ★ resize 时重新计算偏移约束（保持不超屏）
     function recalcScatterTransforms() {
         var banner = document.getElementById('banner');
         if (!banner || !bannerPieces.length) return;
@@ -935,6 +1019,12 @@
         var site = await getSite();
         updateLogo(site);
 
+        // ★ 更新首页 footer 的站点名与描述
+        var footerNameEl = document.getElementById('footerSiteName');
+        var footerDescEl = document.getElementById('footerSiteDesc');
+        if (footerNameEl) footerNameEl.textContent = site.site_name || '须臾之间';
+        if (footerDescEl) footerDescEl.textContent = site.site_desc || '寄蜉蝣于天地，渺沧海之一粟';
+
         var suibiList = await DB.getAll('suibi', { orderBy: 'id' });
         var essayContainer = document.getElementById('homeSuibi');
         if (essayContainer) {
@@ -975,6 +1065,9 @@
             }
             noteContainer.innerHTML = html2;
         }
+
+        // ★ 刷新一次 footer 的最后更新时间
+        updateFooterLastUpdate();
     }
 
     // ============================================================
@@ -1123,12 +1216,12 @@
         initHeaderScroll();
         renderHome();
         updateHeaderHeight();
+        startFooterTimer();   // ★ 启动 footer 定时器
     });
 
     window.addEventListener('resize', function() {
         updateHeaderHeight();
         layoutFragmentBackgrounds();
-        // ★ resize 时重算散落偏移（保持边缘 100px 限制）
         recalcScatterTransforms();
     });
 
